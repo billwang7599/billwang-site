@@ -40,7 +40,7 @@
       import { mountCard, DEFAULT_PARAMS, type CardParams } from '../scripts/card';
 
       const canvas = document.getElementById('card-canvas') as HTMLCanvasElement;
-      const { params } = mountCard(canvas);
+      const { params } = await mountCard(canvas);
 
       // [key, label, min, max, step]
       const CONTROLS: [keyof CardParams, string, number, number, number][] = [

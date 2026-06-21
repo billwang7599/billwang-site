@@ -54,7 +54,6 @@
     <script>
       import { mountCard } from '../scripts/card';
       const canvas = document.getElementById('card-canvas') as HTMLCanvasElement;
-      mountCard(canvas);
 
       // The hint fades in after the card settles; it leaves the instant the
       // visitor does anything, or quietly on its own after a few seconds.
@@ -64,6 +63,8 @@
         window.addEventListener(ev, dismiss, { once: true, passive: true });
       }
       setTimeout(dismiss, 7000);
+
+      await mountCard(canvas);
     </script>
 
     <style>

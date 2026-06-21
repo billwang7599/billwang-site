@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+const yieldFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+
 /** Live-tunable parameters for the card. The render loop reads these every
  *  frame, so mutating the returned object updates behavior in real time. */
 export interface CardParams {
@@ -37,11 +39,23 @@ export const DEFAULT_PARAMS: CardParams = {
  *
  * Returns { params } — mutate it to tune behavior live (see /admin).
  */
-export function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...DEFAULT_PARAMS }) {
+export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...DEFAULT_PARAMS }) {
   // ---- Renderer ----------------------------------------------------------
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const dpr = Math.min(
+    window.devicePixelRatio,
+    window.matchMedia('(pointer: coarse)').matches ? 1.5 : 2,
+  );
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true,
+    powerPreference: 'high-performance',
+  });
+  renderer.setPixelRatio(dpr);
   renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // Paint the page gradient before blocking on scene construction.
+  await yieldFrame();
 
   // ---- Scene & camera ----------------------------------------------------
   const scene = new THREE.Scene();
@@ -95,8 +109,9 @@ export function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...D
   // The front panel is finely tessellated so the displacement map moves real
   // geometry (genuine 3D relief). The body (edges + back) is a separate flat
   // mesh, so the card's edges stay crisp and flat — the stamped look.
-  const SEG_X = 640;
-  const SEG_Y = 366;
+  // Enough segments for displacement relief without ~940k tris per face.
+  const SEG_X = 192;
+  const SEG_Y = 110;
   const TEX = 512;        // stamp texture resolution
 
   // Paper "tooth": the analytic height of the stock at UV (u,v). A tight woven
@@ -208,7 +223,7 @@ export function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...D
   type Box = { x0: number; x1: number; y0: number; y1: number; url: string | null };
 
   function makeTextMaps() {
-    const TW = 2048;
+    const TW = 1536;
     const TH = Math.round(TW * (H / W));
     const mk = () => {
       const cv = document.createElement('canvas');
@@ -368,8 +383,6 @@ export function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...D
       normalTex.needsUpdate = true;
     };
     redraw();
-    // web fonts load async — rebuild both maps once they're ready
-    document.fonts?.ready.then(redraw);
 
     return { tex: colorTex, normalMap: normalTex, boxes };
   }
@@ -491,14 +504,19 @@ export function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...D
       normTex.needsUpdate = true;
     };
     build();
-    document.fonts?.ready.then(build); // rebuild once EB Garamond loads
 
     return { displacementMap: dispTex, normalMap: normTex };
   }
 
+  // Bake text once with the real web font — avoids a mid-animation rebuild.
+  await document.fonts?.ready;
+
   const stamp = makeStampMaps();
+  await yieldFrame();
   const text = makeTextMaps();
+  await yieldFrame();
   const backEmblem = makeBackMaps();
+  await yieldFrame();
   const BONE = 0xe8e5da; // cool bone — less cream, more clinical off-white
 
   // Front panel — paper tooth + letterpress-debossed printed text
@@ -598,39 +616,12 @@ export function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...D
     camera.position.z = params.camDist;
   };
 
+  card.quaternion.copy(introFromQuat);
+  camera.position.z = introFromZ;
+
   const clamp = (v: number) => Math.max(-params.maxVel, Math.min(params.maxVel, v));
 
   let downX = 0, downY = 0;
-
-  // ---- Pointer (mouse + touch via Pointer Events) ------------------------
-  canvas.addEventListener('pointerdown', (e) => {
-    endIntro();
-    dragging = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    downX = e.clientX;
-    downY = e.clientY;
-    lastActivity = performance.now();
-    canvas.setPointerCapture(e.pointerId);
-  });
-
-  canvas.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const dx = e.clientX - lastX;
-    const dy = e.clientY - lastY;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    velY = clamp(dx * params.dragSens);
-    velX = clamp(dy * params.dragSens);
-    lastActivity = performance.now();
-  });
-
-  const endDrag = (e: PointerEvent) => {
-    dragging = false;
-    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-  };
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
 
   // ---- Clickable links (raycast the front face) --------------------------
   const raycaster = new THREE.Raycaster();
@@ -650,37 +641,6 @@ export function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...D
     return null;
   }
 
-  // a near-stationary press is a click, not a drag → follow the link under it.
-  // Internal routes (starting with "/") navigate in place; external links and
-  // mailto: open in a new tab.
-  canvas.addEventListener('pointerup', (e) => {
-    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
-    const url = linkAt(e.clientX, e.clientY);
-    if (!url) return;
-    if (url.startsWith('/')) window.location.href = url;
-    else window.open(url, '_blank', 'noopener');
-  });
-
-  // pointer cursor when hovering a link
-  canvas.addEventListener('pointermove', (e) => {
-    if (dragging) return;
-    canvas.style.cursor = linkAt(e.clientX, e.clientY) ? 'pointer' : 'grab';
-  });
-
-  // ---- Keyboard ----------------------------------------------------------
-  const tracked = new Set([
-    'w', 'a', 's', 'd',
-    'arrowup', 'arrowdown', 'arrowleft', 'arrowright',
-  ]);
-  window.addEventListener('keydown', (e) => {
-    const k = e.key.toLowerCase();
-    if (!tracked.has(k)) return;
-    e.preventDefault();
-    keys.add(k);
-    lastActivity = performance.now();
-  });
-  window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
-
   function applyKeys() {
     if (keys.size === 0) return;
     if (keys.has('w') || keys.has('arrowup')) velX = clamp(velX - params.keyAccel);
@@ -696,6 +656,65 @@ export function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...D
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
+
+  // Warm up shaders before the reveal; don't block the loop if this fails.
+  try {
+    await renderer.compileAsync(scene, camera);
+  } catch {
+    /* proceed — first frame may hitch slightly */
+  }
+  await yieldFrame();
+
+  // Attach input after the scene is ready — stray clicks during init were
+  // calling endIntro() and skipping the reveal before tick() ever ran.
+  const tracked = new Set([
+    'w', 'a', 's', 'd',
+    'arrowup', 'arrowdown', 'arrowleft', 'arrowright',
+  ]);
+  canvas.addEventListener('pointerdown', (e) => {
+    endIntro();
+    dragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    downX = e.clientX;
+    downY = e.clientY;
+    lastActivity = performance.now();
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (dragging) {
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      velY = clamp(dx * params.dragSens);
+      velX = clamp(dy * params.dragSens);
+      lastActivity = performance.now();
+      return;
+    }
+    canvas.style.cursor = linkAt(e.clientX, e.clientY) ? 'pointer' : 'grab';
+  });
+  const endDrag = (e: PointerEvent) => {
+    dragging = false;
+    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('pointerup', (e) => {
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
+    const url = linkAt(e.clientX, e.clientY);
+    if (!url) return;
+    if (url.startsWith('/')) window.location.href = url;
+    else window.open(url, '_blank', 'noopener');
+  });
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (!tracked.has(k)) return;
+    e.preventDefault();
+    keys.add(k);
+    lastActivity = performance.now();
+  });
+  window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 
   // ---- Animation loop ----------------------------------------------------
   function tick() {

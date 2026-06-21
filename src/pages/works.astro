@@ -1,6 +1,5 @@
 ---
-// billwang.dev/works — projects and writing, set on the same "bone" stock and
-// EB Garamond as the business card. Edit the two arrays below to add entries.
+// billwang.dev/works — projects and writing. Edit the two arrays below to add entries.
 
 type Project = { title: string; year: string; blurb: string; href?: string };
 type Post = { title: string; date: string; href?: string };
@@ -11,7 +10,7 @@ const projects: Project[] = [
     year: '2026',
     blurb:
       'A rotatable 3D business card rendered with Three.js — letterpress relief, real paper grain, the works.',
-    href: 'https://github.com/billwang7599',
+    href: '/',
   },
   // Add more projects here.
 ];
@@ -27,6 +26,7 @@ const posts: Post[] = [
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Bill Wang — works & writing" />
+    <link rel="canonical" href="https://billwang.dev/works" />
     <title>Bill Wang — Works</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -36,14 +36,18 @@ const posts: Post[] = [
     />
   </head>
   <body>
-    <main>
-      <header class="masthead">
-        <a class="home" href="/">&larr; card</a>
-        <div class="mark">BILLWANG.DEV</div>
-      </header>
+    <header class="site-nav">
+      <a class="site-name" href="/">Bill Wang</a>
+      <nav aria-label="Site">
+        <a class="current" href="/works" aria-current="page">Works</a>
+      </nav>
+    </header>
 
-      <h1>Works</h1>
-      <p class="lede">Projects I&rsquo;ve built and things I&rsquo;ve written.</p>
+    <main>
+      <header class="page-header">
+        <h1>Works</h1>
+        <p class="lede">Projects I&rsquo;ve built and things I&rsquo;ve written.</p>
+      </header>
 
       <section>
         <h2>Projects</h2>
@@ -60,7 +64,7 @@ const posts: Post[] = [
                     <span class="title">{p.title}</span>
                   )}
                   <span class="dots" aria-hidden="true"></span>
-                  <span class="year">{p.year}</span>
+                  <span class="meta">{p.year}</span>
                 </div>
                 <p class="blurb">{p.blurb}</p>
               </li>
@@ -84,7 +88,7 @@ const posts: Post[] = [
                     <span class="title">{post.title}</span>
                   )}
                   <span class="dots" aria-hidden="true"></span>
-                  <span class="year">{post.date}</span>
+                  <span class="meta">{post.date}</span>
                 </div>
               </li>
             ))}
@@ -93,9 +97,17 @@ const posts: Post[] = [
       </section>
     </main>
 
-    <style>
+    <footer class="site-footer">
+      <a href="mailto:me@billwang.dev">me@billwang.dev</a>
+      <span class="sep" aria-hidden="true">&middot;</span>
+      <a href="https://github.com/billwang7599">GitHub</a>
+      <span class="sep" aria-hidden="true">&middot;</span>
+      <a href="https://www.linkedin.com/in/bw7599">LinkedIn</a>
+    </footer>
+
+    <style is:inline>
       :root {
-        --paper: #e8e5da; /* cool bone stock, matching the card */
+        --bg: #d2d6da;
         --ink: #15161a;
         --ink-soft: #6d7078;
       }
@@ -104,84 +116,137 @@ const posts: Post[] = [
         padding: 0;
         box-sizing: border-box;
       }
-      html,
-      body {
-        background: var(--paper);
-        color: var(--ink);
-        font-family: 'EB Garamond', 'Times New Roman', serif;
-        -webkit-font-smoothing: antialiased;
+      html {
+        scroll-behavior: smooth;
       }
       body {
         min-height: 100vh;
-        /* faint vignette so the page reads like a sheet of cool stock */
-        background-image: radial-gradient(
-          120% 90% at 50% 0%,
-          #efede5 0%,
-          var(--paper) 55%,
-          #dad7cc 100%
-        );
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: 'EB Garamond', 'Times New Roman', serif;
+        -webkit-font-smoothing: antialiased;
+        /* Same cool gallery grey + vignette as the landing page. */
+        background:
+          radial-gradient(120% 115% at 50% 44%, transparent 52%, rgba(34, 38, 45, 0.32) 100%),
+          radial-gradient(72% 80% at 50% 44%, #e9ebee 0%, #d3d7db 52%, #bbc0c5 100%);
       }
-      main {
-        max-width: 44rem;
-        margin: 0 auto;
-        padding: clamp(2rem, 6vw, 5rem) clamp(1.25rem, 5vw, 2.5rem) 5rem;
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.05;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       }
 
-      .masthead {
+      /* ---- Site chrome --------------------------------------------------- */
+      .site-nav {
+        position: sticky;
+        top: 0;
+        z-index: 1;
         display: flex;
         align-items: baseline;
         justify-content: space-between;
-        margin-bottom: clamp(2.5rem, 8vw, 4.5rem);
+        padding: clamp(1.25rem, 4vw, 2rem) clamp(1.25rem, 5vw, 2.5rem);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
       }
-      .home {
-        font-size: 0.95rem;
-        letter-spacing: 0.04em;
-        color: var(--ink-soft);
+      .site-nav a:link,
+      .site-nav a:visited {
         text-decoration: none;
       }
-      .home:hover {
+      .site-name {
+        font-size: clamp(1rem, 2.8vw, 1.15rem);
+        font-weight: 500;
+        letter-spacing: 0.02em;
+      }
+      .site-name:link,
+      .site-name:visited {
         color: var(--ink);
       }
-      .mark {
-        font-size: 0.85rem;
-        letter-spacing: 0.28em;
-        text-transform: uppercase;
+      .site-name:hover {
         color: var(--ink-soft);
       }
+      .site-nav nav {
+        display: flex;
+        gap: 1.5rem;
+      }
+      .site-nav nav a {
+        font-size: 0.8rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        transition: color 0.2s ease;
+      }
+      .site-nav nav a:link,
+      .site-nav nav a:visited {
+        color: var(--ink-soft);
+      }
+      .site-nav nav a:hover,
+      .site-nav nav a.current {
+        color: var(--ink);
+      }
 
+      /* ---- Page content -------------------------------------------------- */
+      main {
+        flex: 1;
+        width: min(42rem, 100%);
+        margin: 0 auto;
+        padding: clamp(1rem, 4vw, 2rem) clamp(1.25rem, 5vw, 2.5rem)
+          clamp(4rem, 10vw, 6rem);
+        opacity: 0;
+        animation: fade-in 1s ease 0.1s forwards;
+      }
+      @keyframes fade-in {
+        to {
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        main {
+          animation: fade-in 0.3s ease forwards;
+        }
+      }
+
+      .page-header {
+        margin-bottom: clamp(3rem, 8vw, 5rem);
+      }
       h1 {
         font-weight: 500;
-        font-size: clamp(2.6rem, 9vw, 4rem);
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
+        font-size: clamp(2.8rem, 10vw, 4.5rem);
+        letter-spacing: 0.04em;
         line-height: 1;
       }
       .lede {
-        margin-top: 0.75rem;
-        font-size: 1.2rem;
+        margin-top: 0.85rem;
+        font-size: clamp(1.05rem, 3vw, 1.25rem);
         font-style: italic;
+        letter-spacing: 0.015em;
         color: var(--ink-soft);
       }
 
-      section {
-        margin-top: clamp(2.5rem, 7vw, 4rem);
+      section + section {
+        margin-top: clamp(3rem, 8vw, 4.5rem);
       }
       h2 {
         font-weight: 600;
-        font-size: 0.8rem;
-        letter-spacing: 0.32em;
+        font-size: 0.72rem;
+        letter-spacing: 0.34em;
         text-transform: uppercase;
         color: var(--ink-soft);
-        padding-bottom: 0.6rem;
-        border-bottom: 1px solid rgba(33, 31, 28, 0.18);
-        margin-bottom: 1.25rem;
+        margin-bottom: 1.5rem;
       }
 
       .entries {
         list-style: none;
       }
-      .entries li + li {
-        margin-top: 1.6rem;
+      .entries li {
+        padding: 1.35rem 0;
+        border-top: 1px solid rgba(21, 22, 26, 0.1);
+      }
+      .entries li:last-child {
+        border-bottom: 1px solid rgba(21, 22, 26, 0.1);
       }
       .row {
         display: flex;
@@ -189,38 +254,67 @@ const posts: Post[] = [
         gap: 0.5rem;
       }
       .title {
-        font-size: 1.45rem;
+        font-size: clamp(1.25rem, 3.5vw, 1.5rem);
         font-weight: 500;
-        color: var(--ink);
         text-decoration: none;
       }
+      .title:link,
+      .title:visited {
+        color: var(--ink);
+      }
       a.title {
-        border-bottom: 1px solid rgba(33, 31, 28, 0.35);
+        border-bottom: 1px solid rgba(21, 22, 26, 0.22);
+        transition: border-color 0.2s ease;
       }
       a.title:hover {
         border-bottom-color: var(--ink);
       }
       .dots {
         flex: 1;
-        border-bottom: 1px dotted rgba(33, 31, 28, 0.3);
+        border-bottom: 1px dotted rgba(21, 22, 26, 0.18);
         transform: translateY(-0.2em);
       }
-      .year {
-        font-size: 1rem;
-        letter-spacing: 0.08em;
+      .meta {
+        font-size: 0.92rem;
+        letter-spacing: 0.06em;
         color: var(--ink-soft);
         white-space: nowrap;
       }
       .blurb {
-        margin-top: 0.35rem;
-        font-size: 1.12rem;
-        line-height: 1.5;
-        color: #3d3a33;
-        max-width: 38rem;
+        margin-top: 0.45rem;
+        font-size: clamp(1rem, 2.6vw, 1.12rem);
+        line-height: 1.6;
+        color: var(--ink-soft);
+        max-width: 36rem;
       }
       .empty {
         font-style: italic;
         color: var(--ink-soft);
+        padding: 1.35rem 0;
+        border-top: 1px solid rgba(21, 22, 26, 0.1);
+        border-bottom: 1px solid rgba(21, 22, 26, 0.1);
+      }
+
+      /* ---- Footer -------------------------------------------------------- */
+      .site-footer {
+        padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1.25rem, 5vw, 2.5rem);
+        text-align: center;
+        font-size: 0.85rem;
+        letter-spacing: 0.04em;
+        color: var(--ink-soft);
+      }
+      .site-footer a:link,
+      .site-footer a:visited {
+        color: var(--ink-soft);
+        text-decoration: none;
+        transition: color 0.2s ease;
+      }
+      .site-footer a:hover {
+        color: var(--ink);
+      }
+      .sep {
+        margin: 0 0.65rem;
+        opacity: 0.45;
       }
     </style>
   </body>
