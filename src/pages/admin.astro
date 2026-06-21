@@ -1,0 +1,160 @@
+---
+// /admin — live tuning panel for the 3D card. Adjust sliders to feel out
+// values, then click "Copy params" and paste them into DEFAULT_PARAMS in
+// src/scripts/card.ts to make them the new defaults.
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Card admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Marcellus&family=Marcellus+SC&display=swap"
+    />
+  </head>
+  <body>
+    <main>
+      <canvas id="card-canvas"></canvas>
+    </main>
+
+    <aside id="panel">
+      <header>
+        <span>Card controls</span>
+        <a href="/">← site</a>
+      </header>
+      <div id="sliders"></div>
+      <footer>
+        <button id="copy">Copy params</button>
+        <button id="reset">Reset</button>
+      </footer>
+      <pre id="status"></pre>
+    </aside>
+
+    <script>
+      import { mountCard, DEFAULT_PARAMS, type CardParams } from '../scripts/card';
+
+      const canvas = document.getElementById('card-canvas') as HTMLCanvasElement;
+      const { params } = mountCard(canvas);
+
+      // [key, label, min, max, step]
+      const CONTROLS: [keyof CardParams, string, number, number, number][] = [
+        ['dragSens',  'Drag sensitivity', 0.001, 0.02,  0.0005],
+        ['keyAccel',  'Key acceleration', 0.0002, 0.01, 0.0002],
+        ['maxVel',    'Max velocity',     0.01,  0.4,   0.005],
+        ['damping',   'Inertia (damping)',0.8,   0.995, 0.005],
+        ['idleYaw',   'Idle drift speed', 0,     0.02,  0.0005],
+        ['idleDelay', 'Idle delay (ms)',  0,     5000,  100],
+        ['roughness', 'Surface roughness',0,     1,     0.02],
+        ['camDist',   'Camera distance',  4,     14,    0.1],
+        ['thickness', 'Card thickness',   0.002, 0.08,  0.002],
+        ['grain',     'Stamp depth (3D)', 0,     0.04,  0.001],
+      ];
+
+      const slidersEl = document.getElementById('sliders')!;
+      const readouts = new Map<keyof CardParams, HTMLElement>();
+
+      for (const [keyName, label, min, max, step] of CONTROLS) {
+        const row = document.createElement('label');
+        row.className = 'row';
+
+        const head = document.createElement('div');
+        head.className = 'rowhead';
+        const name = document.createElement('span');
+        name.textContent = label;
+        const val = document.createElement('span');
+        val.className = 'val';
+        val.textContent = String(params[keyName]);
+        head.append(name, val);
+
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min = String(min);
+        input.max = String(max);
+        input.step = String(step);
+        input.value = String(params[keyName]);
+        input.addEventListener('input', () => {
+          const v = parseFloat(input.value);
+          params[keyName] = v;
+          val.textContent = String(v);
+        });
+
+        row.append(head, input);
+        slidersEl.append(row);
+        readouts.set(keyName, val);
+        (row as any)._input = input;
+      }
+
+      const statusEl = document.getElementById('status')!;
+
+      document.getElementById('copy')!.addEventListener('click', async () => {
+        const json = JSON.stringify(params, null, 2);
+        try {
+          await navigator.clipboard.writeText(json);
+          statusEl.textContent = 'Copied to clipboard:\n' + json;
+        } catch {
+          statusEl.textContent = json;
+        }
+      });
+
+      document.getElementById('reset')!.addEventListener('click', () => {
+        Object.assign(params, DEFAULT_PARAMS);
+        // re-sync every slider + readout
+        CONTROLS.forEach(([keyName], i) => {
+          const row = slidersEl.children[i] as HTMLElement;
+          const input = (row as any)._input as HTMLInputElement;
+          input.value = String(params[keyName]);
+          readouts.get(keyName)!.textContent = String(params[keyName]);
+        });
+        statusEl.textContent = 'Reset to defaults.';
+      });
+    </script>
+
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #ececec; }
+      main { position: fixed; inset: 0; display: grid; place-items: center; }
+      #card-canvas {
+        display: block; width: 100vw; height: 100vh;
+        touch-action: none; cursor: grab;
+      }
+      #card-canvas:active { cursor: grabbing; }
+
+      #panel {
+        position: fixed; top: 16px; left: 16px; width: 280px;
+        max-height: calc(100vh - 32px); overflow-y: auto;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 12px; padding: 14px;
+        font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, sans-serif;
+        color: #222; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+      }
+      #panel header {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-weight: 600; margin-bottom: 12px;
+      }
+      #panel header a { color: #666; text-decoration: none; font-weight: 400; font-size: 12px; }
+      #panel header a:hover { color: #000; }
+      .row { display: block; margin-bottom: 12px; }
+      .rowhead { display: flex; justify-content: space-between; margin-bottom: 4px; }
+      .rowhead .val { color: #666; font-variant-numeric: tabular-nums; }
+      input[type='range'] { width: 100%; accent-color: #111; }
+      footer { display: flex; gap: 8px; margin-top: 4px; }
+      button {
+        flex: 1; padding: 7px 10px; border: 1px solid #ccc; border-radius: 8px;
+        background: #fff; cursor: pointer; font: inherit;
+      }
+      button:hover { background: #f2f2f2; }
+      #status {
+        margin-top: 10px; font-size: 11px; color: #555; white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+    </style>
+  </body>
+</html>

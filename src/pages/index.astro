@@ -1,0 +1,178 @@
+---
+// billwang.dev — minimalist portfolio: a single rotatable 3D business card.
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Bill Wang — software engineer. Email, LinkedIn, GitHub and selected works."
+    />
+    <link rel="canonical" href="https://billwang.dev/" />
+    <!-- Text-only share metadata: a pasted link unfurls as clean type, no icon. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://billwang.dev/" />
+    <meta property="og:title" content="Bill Wang — Software Engineer" />
+    <meta
+      property="og:description"
+      content="Software engineer. Email, LinkedIn, GitHub and selected works."
+    />
+    <meta name="twitter:card" content="summary" />
+    <title>Bill Wang — Software Engineer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+    />
+  </head>
+  <body>
+    <main>
+      <canvas id="card-canvas" aria-hidden="true"></canvas>
+
+      <!-- The canvas above is pixels — invisible to crawlers, ATS parsers and
+           screen readers. This layer carries the page's real semantic content
+           (the same words the card shows) so it's indexable and accessible. -->
+      <article class="sr-only">
+        <h1>Bill Wang</h1>
+        <p>Software Engineer</p>
+        <ul>
+          <li><a href="mailto:me@billwang.dev">me@billwang.dev</a></li>
+          <li><a href="https://www.linkedin.com/in/bw7599">LinkedIn — bw7599</a></li>
+          <li><a href="https://github.com/billwang7599">GitHub — billwang7599</a></li>
+          <li><a href="/works">My works</a></li>
+        </ul>
+      </article>
+
+      <!-- Self-dismissing usage hint; decorative, so hidden from assistive tech. -->
+      <p id="hint" aria-hidden="true">drag to turn &mdash; the lines are links</p>
+    </main>
+
+    <script>
+      import { mountCard } from '../scripts/card';
+      const canvas = document.getElementById('card-canvas') as HTMLCanvasElement;
+      mountCard(canvas);
+
+      // The hint fades in after the card settles; it leaves the instant the
+      // visitor does anything, or quietly on its own after a few seconds.
+      const hint = document.getElementById('hint');
+      const dismiss = () => hint?.classList.add('gone');
+      for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+        window.addEventListener(ev, dismiss, { once: true, passive: true });
+      }
+      setTimeout(dismiss, 7000);
+    </script>
+
+    <style>
+      :root {
+        --bg: #d2d6da;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+      }
+      /* A cool gallery grey with a soft central pool of light, so the card sits
+         in a spotlit vitrine rather than on a flat field. Clinical, composed.
+         The first layer is a vignette that deepens the corners — with the lights
+         down, it pools the spotlight tighter around the card. */
+      body {
+        background:
+          radial-gradient(120% 115% at 50% 44%, transparent 52%, rgba(34, 38, 45, 0.32) 100%),
+          radial-gradient(72% 80% at 50% 44%, #e9ebee 0%, #d3d7db 52%, #bbc0c5 100%);
+      }
+      /* A whisper of film grain over the gradient: it dithers away the banding
+         that wide cool-grey gradients show on large displays and lends the whole
+         frame a photographic, vitrine-under-glass feel. Sits behind the card. */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.05;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      main {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+      }
+      /* Full-viewport canvas; the card is centered by the camera. Starts hidden
+         and is faded up by the entrance animation in card.ts. */
+      #card-canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        touch-action: none; /* let pointer drag rotate instead of scrolling */
+        cursor: grab;
+        opacity: 0;
+        will-change: opacity;
+      }
+      #card-canvas:active {
+        cursor: grabbing;
+      }
+
+      /* Present in the DOM (crawlable + read by screen readers) but visually
+         removed — the visible content is the canvas. */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* Usage hint — low, centered, in the card's own italic Garamond. It eases
+         in only after the entrance reveal has settled, never sooner. */
+      #hint {
+        position: fixed;
+        left: 50%;
+        bottom: clamp(1.4rem, 5vh, 3rem);
+        transform: translateX(-50%);
+        font-family: 'EB Garamond', 'Times New Roman', serif;
+        font-style: italic;
+        font-size: clamp(0.85rem, 2.4vw, 1rem);
+        letter-spacing: 0.015em;
+        color: #6d7078; /* ink-soft, same register as the card */
+        white-space: nowrap;
+        pointer-events: none; /* never intercept a drag */
+        user-select: none;
+        opacity: 0;
+        animation: hint-in 1.2s ease 1.9s forwards;
+      }
+      /* Fade away on first interaction (or the auto-dismiss timer). */
+      #hint.gone {
+        animation: none;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+      }
+      @keyframes hint-in {
+        to {
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #hint {
+          animation-delay: 0.3s;
+          animation-duration: 0.4s;
+        }
+      }
+    </style>
+  </body>
+</html>
