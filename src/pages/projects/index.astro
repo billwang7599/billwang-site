@@ -1,0 +1,69 @@
+---
+// /projects — the project index. Sourced from the `projects` collection: drop a
+// Markdown file in src/content/projects/ and it appears here. Featured projects
+// pin to the top; the rest sort by `order` (then newest year).
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+
+const projects = (await getCollection('projects', ({ data }) => !data.draft)).sort(
+  (a, b) => {
+    if (a.data.featured !== b.data.featured) return a.data.featured ? -1 : 1;
+    if (b.data.order !== a.data.order) return b.data.order - a.data.order;
+    return b.data.year.localeCompare(a.data.year);
+  },
+);
+---
+
+<Base
+  title="Projects — Bill Wang"
+  description="Things Bill Wang has built — software, hardware, and the occasional toy."
+  canonical="https://billwang.dev/projects"
+  current="projects"
+>
+  <header class="page-header">
+    <h1>Projects</h1>
+    <p class="lede">Things I&rsquo;ve built &mdash; and how they came together.</p>
+  </header>
+
+  {
+    projects.length === 0 ? (
+      <p class="empty">Nothing here yet.</p>
+    ) : (
+      <ul class="entries">
+        {projects.map((p, i) => (
+          <li style={`--i:${i}`}>
+            <div class="row">
+              <a class="title" href={`/projects/${p.id}`}>
+                {p.data.title}
+              </a>
+              <span class="dots" aria-hidden="true" />
+              <span class="meta">{p.data.year}</span>
+            </div>
+            <p class="blurb">{p.data.description}</p>
+            {p.data.tech.length > 0 && (
+              <ul class="tech" aria-label="Built with">
+                {p.data.tech.map((t) => (
+                  <li class="pill">{t}</li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  <style>
+    .tech {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.85rem;
+    }
+    .tech .pill {
+      font-size: 0.64rem;
+      padding: 0.22rem 0.6rem;
+    }
+  </style>
+</Base>

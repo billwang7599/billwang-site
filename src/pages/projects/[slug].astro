@@ -1,0 +1,46 @@
+---
+// /projects/[slug] — one case-study page per project. getStaticPaths enumerates
+// every non-draft project; render() turns the Markdown write-up into <Content />
+// dropped into the Project layout.
+import { getCollection, render } from 'astro:content';
+import Project from '../../layouts/Project.astro';
+
+export async function getStaticPaths() {
+  const projects = await getCollection('projects', ({ data }) => !data.draft);
+  return projects.map((project) => ({
+    params: { slug: project.id },
+    props: { project },
+  }));
+}
+
+const { project } = Astro.props;
+const { Content } = await render(project);
+
+// Posts that point back at this project (newest first), for the writing list.
+const related = (
+  await getCollection(
+    'blog',
+    ({ data }) => !data.draft && data.project?.id === project.id,
+  )
+)
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+  .map((p) => ({
+    slug: p.id,
+    title: p.data.title,
+    description: p.data.description,
+    pubDate: p.data.pubDate,
+  }));
+---
+
+<Project
+  title={project.data.title}
+  description={project.data.description}
+  year={project.data.year}
+  tech={project.data.tech}
+  link={project.data.link}
+  repo={project.data.repo}
+  slug={project.id}
+  related={related}
+>
+  <Content />
+</Project>

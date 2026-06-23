@@ -1,0 +1,196 @@
+---
+// Single project case-study layout. Like Post, it sits on Base and adds a
+// header tuned for project metadata — year, tech stack, and action links to the
+// live build and the repo. The Markdown write-up arrives through <slot />.
+import Base from './Base.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  year: string;
+  tech?: string[];
+  link?: string;
+  repo?: string;
+  slug: string;
+  related?: { slug: string; title: string; description: string; pubDate: Date }[];
+}
+
+const {
+  title,
+  description,
+  year,
+  tech = [],
+  link,
+  repo,
+  slug,
+  related = [],
+} = Astro.props;
+
+const canonical = `https://billwang.dev/projects/${slug}`;
+const fmtDate = (d: Date) =>
+  d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+---
+
+<Base
+  title={`${title} — Bill Wang`}
+  description={description}
+  canonical={canonical}
+  ogType="article"
+  current="projects"
+>
+  <article>
+    <header class="project-header">
+      <p class="kicker"><a href="/projects">Projects</a></p>
+      <h1>{title}</h1>
+      <p class="dateline">{year}</p>
+      <p class="summary">{description}</p>
+
+      {
+        tech.length > 0 && (
+          <ul class="tech" aria-label="Built with">
+            {tech.map((t) => (
+              <li class="pill">{t}</li>
+            ))}
+          </ul>
+        )
+      }
+
+      {
+        (link || repo) && (
+          <p class="actions">
+            {link && (
+              <a class="action" href={link}>
+                Visit&nbsp;↗
+              </a>
+            )}
+            {repo && (
+              <a class="action" href={repo}>
+                Source&nbsp;↗
+              </a>
+            )}
+          </p>
+        )
+      }
+    </header>
+
+    <div class="prose">
+      <slot />
+    </div>
+
+    {
+      related.length > 0 && (
+        <section class="related">
+          <h2 class="section-label">Writing</h2>
+          <ul class="entries">
+            {related.map((p, i) => (
+              <li style={`--i:${i}`}>
+                <div class="row">
+                  <a class="title" href={`/writing/${p.slug}`}>
+                    {p.title}
+                  </a>
+                  <span class="dots" aria-hidden="true" />
+                  <span class="meta">
+                    <time datetime={p.pubDate.toISOString()}>{fmtDate(p.pubDate)}</time>
+                  </span>
+                </div>
+                <p class="blurb">{p.description}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    <p class="all-link"><a href="/projects">← All projects</a></p>
+  </article>
+
+  <style>
+    .project-header {
+      margin-bottom: clamp(2.5rem, 7vw, 3.5rem);
+    }
+    .kicker {
+      font-size: 0.72rem;
+      letter-spacing: 0.34em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 1.25rem;
+    }
+    .kicker a {
+      color: var(--ink-soft);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+    .kicker a:hover {
+      color: var(--ink);
+    }
+    .project-header h1 {
+      font-weight: 500;
+      font-size: clamp(2.2rem, 7vw, 3.4rem);
+      letter-spacing: 0.01em;
+      line-height: 1.08;
+    }
+    .dateline {
+      margin-top: 0.75rem;
+      font-style: italic;
+      font-size: clamp(1rem, 2.6vw, 1.1rem);
+      color: var(--ink-soft);
+    }
+    .summary {
+      margin-top: 1rem;
+      font-size: clamp(1.1rem, 2.8vw, 1.28rem);
+      line-height: 1.6;
+      color: var(--ink);
+      max-width: 34rem;
+    }
+    .tech {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1.4rem;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.6rem;
+    }
+    .action {
+      font-size: 0.78rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink);
+      text-decoration: none;
+      border: 1px solid var(--ink);
+      border-radius: 999px;
+      padding: 0.5rem 1.1rem;
+      transition:
+        background 0.2s ease,
+        color 0.2s ease;
+    }
+    .action:hover {
+      background: var(--ink);
+      color: var(--bg);
+    }
+
+    .related {
+      margin-top: clamp(3rem, 8vw, 4.5rem);
+    }
+
+    .all-link {
+      margin-top: clamp(3rem, 8vw, 4.5rem);
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--hair);
+    }
+    .all-link a {
+      color: var(--ink-soft);
+      text-decoration: none;
+      font-size: 0.92rem;
+      letter-spacing: 0.04em;
+      transition: color 0.2s ease;
+    }
+    .all-link a:hover {
+      color: var(--ink);
+    }
+  </style>
+</Base>

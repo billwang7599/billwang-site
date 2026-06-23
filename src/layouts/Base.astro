@@ -1,0 +1,494 @@
+---
+// Base.astro — the shared site chrome for every page except the canvas landing.
+// It carries the gallery-grey vitrine background, the grain overlay, the sticky
+// nav, the footer, and the whole typographic system (prose, list rows, headers)
+// as global styles, so pages that use it only emit semantic markup.
+//
+// Pass page-specific <link>/<meta> through the named "head" slot.
+interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  ogType?: 'website' | 'article';
+  current?: 'projects' | 'writing';
+}
+
+const {
+  title,
+  description,
+  canonical,
+  ogType = 'website',
+  current,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    {canonical && <link rel="canonical" href={canonical} />}
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="Bill Wang — Writing"
+      href="/rss.xml"
+    />
+    <meta property="og:type" content={ogType} />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta name="twitter:card" content="summary" />
+    <title>{title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+    />
+    <slot name="head" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <a class="site-name" href="/">Bill Wang</a>
+      <nav aria-label="Site">
+        <a
+          href="/projects"
+          class={current === 'projects' ? 'current' : undefined}
+          aria-current={current === 'projects' ? 'page' : undefined}
+          >Projects</a
+        >
+        <a
+          href="/writing"
+          class={current === 'writing' ? 'current' : undefined}
+          aria-current={current === 'writing' ? 'page' : undefined}
+          >Writing</a
+        >
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <a href="mailto:me@billwang.dev">me@billwang.dev</a>
+      <span class="sep" aria-hidden="true">&middot;</span>
+      <a href="https://github.com/billwang7599">GitHub</a>
+      <span class="sep" aria-hidden="true">&middot;</span>
+      <a href="https://www.linkedin.com/in/bw7599">LinkedIn</a>
+      <span class="sep" aria-hidden="true">&middot;</span>
+      <a href="/rss.xml">RSS</a>
+    </footer>
+
+    <script>
+      // Smooth internal navigation: fade the page down into the shared vitrine
+      // grey before leaving, so moving between the works pages — and back to the
+      // landing card — reads as one continuous move rather than a hard cut.
+      const root = document.body;
+
+      // A back/forward restore (bfcache) can bring back a page left mid-fade.
+      // Clear the leaving state so it's visible again.
+      window.addEventListener('pageshow', () => root.classList.remove('is-leaving'));
+
+      document.addEventListener('click', (e) => {
+        if (e.defaultPrevented || e.button !== 0) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+        const link = (e.target as HTMLElement).closest('a');
+        if (!link) return;
+
+        const href = link.getAttribute('href');
+        if (!href || link.target === '_blank' || link.hasAttribute('download')) return;
+
+        const url = new URL(href, location.href);
+        if (url.origin !== location.origin) return; // external → let it be
+        // Same-page hash (in-page anchor) → no transition.
+        if (url.pathname + url.search === location.pathname + location.search) return;
+        // Respect reduced motion — navigate immediately.
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        e.preventDefault();
+        root.classList.add('is-leaving');
+
+        let navigated = false;
+        const go = () => {
+          if (navigated) return;
+          navigated = true;
+          location.href = url.href;
+        };
+        // Leave once the sink finishes. Ignore any in-flight arrival-reveal
+        // animationend events; a timer guards against a missed event.
+        root.addEventListener('animationend', (ev) => {
+          if ((ev as AnimationEvent).animationName === 'sink') go();
+        });
+        setTimeout(go, 420);
+      });
+    </script>
+
+    <style is:global>
+      :root {
+        --bg: #d2d6da;
+        --ink: #15161a;
+        --ink-soft: #6d7078;
+        --hair: rgba(21, 22, 26, 0.1);
+        --hair-strong: rgba(21, 22, 26, 0.22);
+        --measure: 42rem;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        /* The vitrine gradient lives on <body>; the rubber-band overscroll area
+           reveals <html> behind it. Match the base grey here so a pull past the
+           top/bottom never flashes the default white, and stop the bounce itself
+           on the vertical axis. */
+        background: var(--bg);
+        overscroll-behavior-y: none;
+      }
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        color: var(--ink);
+        font-family: 'EB Garamond', 'Times New Roman', serif;
+        -webkit-font-smoothing: antialiased;
+        /* Cool gallery grey with a soft central pool of light + a corner
+           vignette — the same vitrine the landing card sits in. */
+        background:
+          radial-gradient(120% 115% at 50% 44%, transparent 52%, rgba(34, 38, 45, 0.32) 100%),
+          radial-gradient(72% 80% at 50% 44%, #e9ebee 0%, #d3d7db 52%, #bbc0c5 100%);
+      }
+      /* A whisper of film grain to dither away gradient banding on wide
+         displays and lend a photographic, under-glass feel. */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: -1;
+        opacity: 0.05;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+
+      /* ---- Site chrome --------------------------------------------------- */
+      .site-nav {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: clamp(1.25rem, 4vw, 2rem) clamp(1.25rem, 5vw, 2.5rem)
+          clamp(1.7rem, 4vw, 2.4rem);
+        /* A frosted veil that's opaque enough to always read as a bar, fading to
+           nothing at its lower edge so content slips under it without a line.
+           The blur underneath gives it the vitrine-glass feel. */
+        background: linear-gradient(
+          to bottom,
+          rgba(228, 231, 234, 0.85) 0%,
+          rgba(228, 231, 234, 0.58) 55%,
+          rgba(228, 231, 234, 0) 100%
+        );
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      .site-nav a {
+        text-decoration: none;
+      }
+      .site-name {
+        font-size: clamp(1rem, 2.8vw, 1.15rem);
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: var(--ink);
+      }
+      .site-name:hover {
+        color: var(--ink-soft);
+      }
+      .site-nav nav {
+        display: flex;
+        gap: 1.5rem;
+      }
+      .site-nav nav a {
+        font-size: 0.8rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        transition: color 0.2s ease;
+      }
+      .site-nav nav a:hover,
+      .site-nav nav a.current {
+        color: var(--ink);
+      }
+
+      /* ---- Page wrapper -------------------------------------------------- */
+      main {
+        flex: 1;
+        width: min(var(--measure), 100%);
+        margin: 0 auto;
+        padding: clamp(1rem, 4vw, 2rem) clamp(1.25rem, 5vw, 2.5rem)
+          clamp(4rem, 10vw, 6rem);
+      }
+
+      /* Arrival: the page rises out of the same vitrine grey the landing card
+         receded into, so navigating in from the card reads as one continuous
+         move rather than a cut. Blocks stagger in; list rows cascade via --i. */
+      @media (prefers-reduced-motion: no-preference) {
+        /* The bar settles down from above, framing the page just before the
+           content rises into it. */
+        .site-nav {
+          opacity: 0;
+          animation: nav-in 0.7s cubic-bezier(0.2, 0.65, 0.2, 1) 0.02s both;
+        }
+        .page-header,
+        .filters,
+        .post-header,
+        .project-header,
+        .prose,
+        .entries > li {
+          opacity: 0;
+          animation: rise 0.7s cubic-bezier(0.2, 0.65, 0.2, 1) both;
+        }
+        .page-header,
+        .post-header,
+        .project-header {
+          animation-delay: 0.06s;
+        }
+        .filters {
+          animation-delay: 0.16s;
+        }
+        .prose {
+          animation-delay: 0.2s;
+        }
+        .entries > li {
+          animation-delay: calc(0.22s + var(--i, 0) * 0.06s);
+        }
+
+        /* Leaving: the whole page sinks into the shared grey before navigating,
+           so a click to / hands off to the card's rise-from-grey intro without a
+           cut. Set by the inline navigation script below. */
+        body.is-leaving .site-nav,
+        body.is-leaving main,
+        body.is-leaving .site-footer {
+          animation: sink 0.34s cubic-bezier(0.4, 0, 1, 1) both;
+        }
+      }
+      body.is-leaving {
+        pointer-events: none;
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes nav-in {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes sink {
+        to {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+      }
+
+      /* ---- Page + section headers --------------------------------------- */
+      .page-header {
+        margin-bottom: clamp(2.5rem, 7vw, 4rem);
+      }
+      .page-header h1 {
+        font-weight: 500;
+        font-size: clamp(2.8rem, 10vw, 4.5rem);
+        letter-spacing: 0.04em;
+        line-height: 1;
+      }
+      .lede {
+        margin-top: 0.85rem;
+        font-size: clamp(1.05rem, 3vw, 1.25rem);
+        font-style: italic;
+        letter-spacing: 0.015em;
+        color: var(--ink-soft);
+      }
+      .section-label {
+        font-weight: 600;
+        font-size: 0.72rem;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin-bottom: 1.5rem;
+      }
+
+      /* ---- Editorial entry list (projects + posts) ---------------------- */
+      .entries {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: clamp(1.6rem, 4vw, 2.4rem);
+      }
+      .entries .row {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+      }
+      .entries .title {
+        font-size: clamp(1.25rem, 3.5vw, 1.5rem);
+        font-weight: 500;
+        text-decoration: none;
+        color: var(--ink);
+      }
+      a.title {
+        border-bottom: 1px solid var(--hair-strong);
+        transition: border-color 0.2s ease;
+      }
+      a.title:hover {
+        border-bottom-color: var(--ink);
+      }
+      .dots {
+        flex: 1;
+        border-bottom: 1px dotted rgba(21, 22, 26, 0.18);
+        transform: translateY(-0.2em);
+      }
+      .meta {
+        font-size: 0.92rem;
+        letter-spacing: 0.06em;
+        color: var(--ink-soft);
+        white-space: nowrap;
+      }
+      .blurb {
+        margin-top: 0.45rem;
+        font-size: clamp(1rem, 2.6vw, 1.12rem);
+        line-height: 1.6;
+        color: var(--ink-soft);
+        max-width: 36rem;
+      }
+      .empty {
+        font-style: italic;
+        color: var(--ink-soft);
+        padding: 0.5rem 0;
+      }
+
+      /* ---- Pill tags (shared by filters + post header) ------------------ */
+      .pill {
+        font-size: 0.7rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        border: 1px solid var(--hair-strong);
+        border-radius: 999px;
+        padding: 0.28rem 0.7rem;
+        white-space: nowrap;
+      }
+
+      /* ---- Footer -------------------------------------------------------- */
+      .site-footer {
+        padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1.25rem, 5vw, 2.5rem);
+        text-align: center;
+        font-size: 0.85rem;
+        letter-spacing: 0.04em;
+        color: var(--ink-soft);
+      }
+      .site-footer a {
+        color: var(--ink-soft);
+        text-decoration: none;
+        transition: color 0.2s ease;
+      }
+      .site-footer a:hover {
+        color: var(--ink);
+      }
+      .sep {
+        margin: 0 0.65rem;
+        opacity: 0.45;
+      }
+
+      /* ---- Prose (rendered Markdown, shared by posts + projects) -------- */
+      .prose {
+        font-size: clamp(1.08rem, 2.7vw, 1.22rem);
+        line-height: 1.72;
+        color: var(--ink);
+      }
+      .prose > * + * {
+        margin-top: 1.3rem;
+      }
+      .prose h2,
+      .prose h3 {
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        line-height: 1.2;
+        margin-top: 2.6rem;
+      }
+      .prose h2 {
+        font-size: clamp(1.5rem, 4vw, 1.9rem);
+      }
+      .prose h3 {
+        font-size: clamp(1.25rem, 3.2vw, 1.5rem);
+      }
+      .prose a {
+        color: var(--ink);
+        text-decoration: none;
+        border-bottom: 1px solid rgba(21, 22, 26, 0.3);
+        transition: border-color 0.2s ease;
+      }
+      .prose a:hover {
+        border-bottom-color: var(--ink);
+      }
+      .prose ul,
+      .prose ol {
+        padding-left: 1.4rem;
+      }
+      .prose li + li {
+        margin-top: 0.5rem;
+      }
+      .prose blockquote {
+        border-left: 2px solid var(--hair-strong);
+        padding-left: 1.2rem;
+        font-style: italic;
+        color: var(--ink-soft);
+      }
+      .prose img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 6px;
+      }
+      .prose hr {
+        border: 0;
+        border-top: 1px solid rgba(21, 22, 26, 0.12);
+      }
+      .prose code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.86em;
+        background: rgba(21, 22, 26, 0.06);
+        padding: 0.12em 0.35em;
+        border-radius: 4px;
+      }
+      .prose pre {
+        font-size: clamp(0.85rem, 2.2vw, 0.95rem);
+        line-height: 1.6;
+        padding: 1.1rem 1.25rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        border: 1px solid var(--hair);
+      }
+      .prose pre code {
+        background: none;
+        padding: 0;
+        border-radius: 0;
+        font-size: inherit;
+      }
+    </style>
+  </body>
+</html>

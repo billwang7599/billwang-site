@@ -11,7 +11,10 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/rss": "^4.0.18",
     "astro": "^6.3.0",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0",
     "three": "^0.171.0"
   },
   "devDependencies": {

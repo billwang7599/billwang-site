@@ -317,7 +317,7 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
         { t: '·', url: null },
         { t: 'GITHUB/BILLWANG7599', url: 'https://github.com/billwang7599' },
         { t: '·', url: null },
-        { t: 'MY WORKS', url: '/works' },
+        { t: 'MY WORKS', url: '/projects' },
       ];
       const sep = '   ';
       const sepW = ctx.measureText(sep).width;
@@ -584,13 +584,18 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
   const X_AXIS = new THREE.Vector3(1, 0, 0);
   const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
+  // Velocities are in normalized "per-60Hz-frame" units; the loop scales them by
+  // dt so the feel is identical on a 60Hz and a 120Hz display.
   let velX = 0;          // pitch velocity (around world X)
   let velY = 0;          // yaw velocity (around world Y)
 
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+  let dragDX = 0;        // pointer travel accumulated since the last frame
+  let dragDY = 0;
   let lastActivity = performance.now();
+  let lastFrame = performance.now();
 
   const keys = new Set<string>();
 
@@ -615,6 +620,31 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     canvas.style.opacity = '1';
     camera.position.z = params.camDist;
   };
+
+  // ---- Exit: the entrance, run in reverse ---------------------------------
+  // When an internal link is followed we don't hard-cut to the next page. The
+  // card turns back to its three-quarter pose, dollies away from the camera and
+  // dissolves into the vitrine grey; only then do we navigate. The destination
+  // shares this exact grey and rises out of it, so the whole thing reads as one
+  // continuous move — the camera pulling off the card and onto the shelf.
+  let exiting = false;
+  let exitStart = 0;
+  let exitDur = 720;
+  let exitResolve: (() => void) | null = null;
+  const exitFromQuat = new THREE.Quaternion();
+  const exitToZ = params.camDist + 2.2; // recede further than the intro arrives
+  const easeInCubic = (t: number) => t * t * t;
+  function playOutro(): Promise<void> {
+    if (exiting) return Promise.resolve();
+    endIntro(); // guarantee we're past the reveal before leaving
+    exitFromQuat.copy(card.quaternion);
+    exitStart = performance.now();
+    exitDur = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 200
+      : 720;
+    exiting = true;
+    return new Promise((res) => (exitResolve = res));
+  }
 
   card.quaternion.copy(introFromQuat);
   camera.position.z = introFromZ;
@@ -641,12 +671,13 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     return null;
   }
 
-  function applyKeys() {
+  function applyKeys(dt: number) {
     if (keys.size === 0) return;
-    if (keys.has('w') || keys.has('arrowup')) velX = clamp(velX - params.keyAccel);
-    if (keys.has('s') || keys.has('arrowdown')) velX = clamp(velX + params.keyAccel);
-    if (keys.has('a') || keys.has('arrowleft')) velY = clamp(velY - params.keyAccel);
-    if (keys.has('d') || keys.has('arrowright')) velY = clamp(velY + params.keyAccel);
+    const a = params.keyAccel * dt;
+    if (keys.has('w') || keys.has('arrowup')) velX = clamp(velX - a);
+    if (keys.has('s') || keys.has('arrowdown')) velX = clamp(velX + a);
+    if (keys.has('a') || keys.has('arrowleft')) velY = clamp(velY - a);
+    if (keys.has('d') || keys.has('arrowright')) velY = clamp(velY + a);
     lastActivity = performance.now();
   }
 
@@ -672,6 +703,7 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     'arrowup', 'arrowdown', 'arrowleft', 'arrowright',
   ]);
   canvas.addEventListener('pointerdown', (e) => {
+    if (exiting) return; // ignore input once the card is leaving
     endIntro();
     dragging = true;
     lastX = e.clientX;
@@ -683,12 +715,13 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
   });
   canvas.addEventListener('pointermove', (e) => {
     if (dragging) {
-      const dx = e.clientX - lastX;
-      const dy = e.clientY - lastY;
+      // Accumulate travel and let the loop turn it into rotation once per frame,
+      // so multiple pointer events in a frame sum cleanly and idle frames don't
+      // re-apply a stale delta (which used to make the card drift while held).
+      dragDX += e.clientX - lastX;
+      dragDY += e.clientY - lastY;
       lastX = e.clientX;
       lastY = e.clientY;
-      velY = clamp(dx * params.dragSens);
-      velX = clamp(dy * params.dragSens);
       lastActivity = performance.now();
       return;
     }
@@ -704,8 +737,14 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
     const url = linkAt(e.clientX, e.clientY);
     if (!url) return;
-    if (url.startsWith('/')) window.location.href = url;
-    else window.open(url, '_blank', 'noopener');
+    if (url.startsWith('/')) {
+      // Internal page: play the card's outro, then navigate into the shared grey.
+      void playOutro().then(() => {
+        window.location.href = url;
+      });
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
   });
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
@@ -718,6 +757,25 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
 
   // ---- Animation loop ----------------------------------------------------
   function tick() {
+    // Exit: once triggered, own the scene, recede + dissolve the card, then
+    // stop the loop and let the queued navigation take over.
+    if (exiting) {
+      const t = Math.min(1, (performance.now() - exitStart) / exitDur);
+      const e = easeInCubic(t);
+      camera.position.z = params.camDist + (exitToZ - params.camDist) * e;
+      card.quaternion.slerpQuaternions(exitFromQuat, introFromQuat, e);
+      // Fade a touch ahead of the recession so there's a clean beat of pure
+      // grey before the page swaps.
+      canvas.style.opacity = String(1 - Math.min(1, e * 1.15));
+      renderer.render(scene, camera);
+      if (t >= 1) {
+        exitResolve?.();
+        return; // halt the RAF chain — navigation follows
+      }
+      requestAnimationFrame(tick);
+      return;
+    }
+
     // Entrance: own the camera + pose until the card has settled, then hand
     // back to the normal interaction logic below.
     if (intro) {
@@ -753,27 +811,44 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
       lastThick = params.thickness;
     }
 
-    applyKeys();
+    // Frame time, normalized so dt = 1 at 60fps. Clamped so a hidden tab or a
+    // dropped frame can't fling the card on return.
+    const now = performance.now();
+    const dt = Math.min(3, Math.max(0.25, (now - lastFrame) / (1000 / 60)));
+    lastFrame = now;
+
+    applyKeys(dt);
 
     const active = dragging || keys.size > 0;
-    const idle = !active && performance.now() - lastActivity > params.idleDelay;
+    const idle = !active && now - lastActivity > params.idleDelay;
 
-    if (idle) {
+    if (dragging) {
+      // This frame's pointer travel → a target speed, then ease toward it. The
+      // easing low-passes pointer jitter into smooth, slightly weighted motion;
+      // dividing by dt keeps the mapping framerate-independent.
+      const targetY = clamp((dragDX * params.dragSens) / dt);
+      const targetX = clamp((dragDY * params.dragSens) / dt);
+      dragDX = 0;
+      dragDY = 0;
+      const follow = 1 - Math.pow(1 - 0.5, dt);
+      velY += (targetY - velY) * follow;
+      velX += (targetX - velX) * follow;
+    } else if (idle) {
       // ease toward a slow horizontal drift
-      velY += (params.idleYaw - velY) * 0.02;
-      velX *= 0.92;
-    } else if (!active) {
+      velY += (params.idleYaw - velY) * (1 - Math.pow(1 - 0.02, dt));
+      velX *= Math.pow(0.92, dt);
+    } else if (keys.size === 0) {
       // coast with inertia after release
-      velX *= params.damping;
-      velY *= params.damping;
+      velX *= Math.pow(params.damping, dt);
+      velY *= Math.pow(params.damping, dt);
     }
 
     // keep within the (possibly just-lowered) speed cap
     velX = clamp(velX);
     velY = clamp(velY);
 
-    card.rotateOnWorldAxis(X_AXIS, velX);
-    card.rotateOnWorldAxis(Y_AXIS, velY);
+    card.rotateOnWorldAxis(X_AXIS, velX * dt);
+    card.rotateOnWorldAxis(Y_AXIS, velY * dt);
 
     renderer.render(scene, camera);
     requestAnimationFrame(tick);

@@ -1,0 +1,53 @@
+---
+// /writing/[slug] — one page per blog post. getStaticPaths enumerates every
+// non-draft post (newest-first) and, for each, computes reading time from the
+// raw Markdown and resolves its newer/older neighbours for the prev/next nav.
+import { getCollection, getEntry, render } from 'astro:content';
+import Post from '../../layouts/Post.astro';
+import { readingTime } from '../../lib/reading';
+
+export async function getStaticPaths() {
+  const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
+    (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+  );
+
+  return posts.map((post, i) => {
+    // Newest-first order: i-1 is newer ("prev"), i+1 is older ("next").
+    const newer = posts[i - 1];
+    const older = posts[i + 1];
+    return {
+      params: { slug: post.id },
+      props: {
+        post,
+        minutes: readingTime(post.body ?? ''),
+        prev: newer ? { slug: newer.id, title: newer.data.title } : undefined,
+        next: older ? { slug: older.id, title: older.data.title } : undefined,
+      },
+    };
+  });
+}
+
+const { post, minutes, prev, next } = Astro.props;
+const { Content } = await render(post);
+
+// If this post is tied to a project, resolve it for the "part of" link.
+const projectRef = post.data.project ? await getEntry(post.data.project) : undefined;
+const project = projectRef
+  ? { slug: projectRef.id, title: projectRef.data.title }
+  : undefined;
+---
+
+<Post
+  title={post.data.title}
+  description={post.data.description}
+  pubDate={post.data.pubDate}
+  updatedDate={post.data.updatedDate}
+  tags={post.data.tags}
+  slug={post.id}
+  minutes={minutes}
+  prev={prev}
+  next={next}
+  project={project}
+>
+  <Content />
+</Post>

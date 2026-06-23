@@ -1,0 +1,142 @@
+---
+// /writing — the full post index, newest-first, with a tag filter. Posts come
+// from the `blog` collection; each row carries its tags + reading time, and the
+// filter chips below the header narrow the list client-side (the list still
+// renders complete without JS).
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { readingTime } from '../../lib/reading';
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+);
+
+// Every tag in use, alphabetised, for the filter row.
+const tags = [...new Set(posts.flatMap((p) => p.data.tags))].sort();
+
+const fmtDate = (d: Date) =>
+  d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+---
+
+<Base
+  title="Writing — Bill Wang"
+  description="Posts by Bill Wang — dev logs, networking, homelab and more."
+  canonical="https://billwang.dev/writing"
+  current="writing"
+>
+  <header class="page-header">
+    <h1>Writing</h1>
+    <p class="lede">Dev logs, notes, and things worth keeping.</p>
+  </header>
+
+  {
+    tags.length > 0 && (
+      <div class="filters" role="group" aria-label="Filter by tag">
+        <button class="chip is-active" data-tag="*" type="button">
+          All
+        </button>
+        {tags.map((t) => (
+          <button class="chip" data-tag={t} type="button">
+            {t}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  {
+    posts.length === 0 ? (
+      <p class="empty">Coming soon.</p>
+    ) : (
+      <ul class="entries" id="post-list">
+        {posts.map((post, i) => (
+          <li data-tags={post.data.tags.join(' ')} style={`--i:${i}`}>
+            <div class="row">
+              <a class="title" href={`/writing/${post.id}`}>
+                {post.data.title}
+              </a>
+              <span class="dots" aria-hidden="true" />
+              <span class="meta">
+                <time datetime={post.data.pubDate.toISOString()}>
+                  {fmtDate(post.data.pubDate)}
+                </time>
+                <span class="dot-sep" aria-hidden="true">
+                  ·
+                </span>
+                {readingTime(post.body ?? '')} min
+              </span>
+            </div>
+            <p class="blurb">{post.data.description}</p>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  <p class="no-match" hidden>Nothing tagged that — yet.</p>
+
+  <script>
+    // Progressive enhancement: filter the rendered list by tag, in place.
+    const chips = document.querySelectorAll<HTMLButtonElement>('.chip');
+    const items = document.querySelectorAll<HTMLLIElement>('#post-list li');
+    const noMatch = document.querySelector<HTMLParagraphElement>('.no-match');
+
+    for (const chip of chips) {
+      chip.addEventListener('click', () => {
+        const tag = chip.dataset.tag!;
+        chips.forEach((c) => c.classList.toggle('is-active', c === chip));
+
+        let shown = 0;
+        for (const li of items) {
+          const tags = (li.dataset.tags ?? '').split(' ');
+          const match = tag === '*' || tags.includes(tag);
+          li.hidden = !match;
+          if (match) shown++;
+        }
+        if (noMatch) noMatch.hidden = shown !== 0;
+      });
+    }
+  </script>
+
+  <style>
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+    .chip {
+      font-family: inherit;
+      font-size: 0.72rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      background: transparent;
+      border: 1px solid var(--hair-strong);
+      border-radius: 999px;
+      padding: 0.32rem 0.8rem;
+      cursor: pointer;
+      transition:
+        color 0.2s ease,
+        border-color 0.2s ease,
+        background 0.2s ease;
+    }
+    .chip:hover {
+      color: var(--ink);
+      border-color: var(--ink);
+    }
+    .chip.is-active {
+      color: var(--bg);
+      background: var(--ink);
+      border-color: var(--ink);
+    }
+    .meta .dot-sep {
+      margin: 0 0.4rem;
+      opacity: 0.5;
+    }
+    .no-match {
+      font-style: italic;
+      color: var(--ink-soft);
+      padding: 1.35rem 0;
+    }
+  </style>
+</Base>
