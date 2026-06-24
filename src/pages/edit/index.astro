@@ -1,0 +1,1022 @@
+---
+// /edit — dev-only content editor. Writes to src/content/ via Vite middleware.
+// Stripped from dist after build.
+export const prerender = true;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Content editor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+    />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <a class="site-name" href="/">Bill Wang</a>
+        <span class="badge">dev editor</span>
+      </div>
+      <nav class="tabs" aria-label="Content type">
+        <button type="button" class="tab is-active" data-mode="posts">Writing</button>
+        <button type="button" class="tab" data-mode="projects">Projects</button>
+      </nav>
+      <div class="actions">
+        <span id="status" class="status" aria-live="polite"></span>
+        <span id="editor-target" class="editor-target"></span>
+        <a id="preview-link" class="ghost" href="#" target="_blank" hidden>Preview ↗</a>
+        <button id="new-btn" type="button" class="ghost">New</button>
+        <button id="save-btn" type="button" class="primary">Save</button>
+        <button id="delete-btn" type="button" class="danger" disabled>Delete</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside>
+        <p class="sidebar-label" id="sidebar-label">Posts</p>
+        <div id="item-list" class="item-list"></div>
+      </aside>
+
+      <main>
+        <form id="editor" autocomplete="off" novalidate>
+          <!-- Writing fields -->
+          <div id="post-fields" class="fields">
+            <section class="panel">
+              <h2 class="panel-title">Details</h2>
+              <div class="field-stack">
+                <label>
+                  <span>Title</span>
+                  <input id="post-title" type="text" />
+                </label>
+                <label>
+                  <span>Description</span>
+                  <input id="post-description" type="text" />
+                </label>
+              </div>
+              <div class="field-row">
+                <label>
+                  <span>Published</span>
+                  <input id="post-pubDate" type="date" />
+                </label>
+                <label>
+                  <span>Updated</span>
+                  <input id="post-updatedDate" type="date" />
+                </label>
+                <label>
+                  <span>Project</span>
+                  <select id="post-project">
+                    <option value="">— none —</option>
+                  </select>
+                </label>
+              </div>
+              <div class="field-row">
+                <label class="grow">
+                  <span>Tags</span>
+                  <input id="post-tags" type="text" placeholder="devlog, homelab" />
+                </label>
+                <label class="toggle">
+                  <input id="post-draft" type="checkbox" />
+                  <span>Draft</span>
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <!-- Project fields -->
+          <div id="project-fields" class="fields" hidden>
+            <section class="panel">
+              <h2 class="panel-title">Details</h2>
+              <div class="field-stack">
+                <label>
+                  <span>Title</span>
+                  <input id="project-title" type="text" />
+                </label>
+                <label>
+                  <span>Description</span>
+                  <input id="project-description" type="text" />
+                </label>
+              </div>
+              <div class="field-row">
+                <label>
+                  <span>Year</span>
+                  <input id="project-year" type="text" inputmode="numeric" placeholder="2026" />
+                </label>
+                <label>
+                  <span>Order</span>
+                  <input id="project-order" type="number" min="0" step="1" />
+                </label>
+                <label class="toggle">
+                  <input id="project-featured" type="checkbox" />
+                  <span>Featured</span>
+                </label>
+                <label class="toggle">
+                  <input id="project-draft" type="checkbox" />
+                  <span>Draft</span>
+                </label>
+              </div>
+              <div class="field-row">
+                <label class="grow">
+                  <span>Tech</span>
+                  <input id="project-tech" type="text" placeholder="Go, Three.js, Astro" />
+                </label>
+              </div>
+              <div class="field-row">
+                <label class="grow">
+                  <span>Link</span>
+                  <input id="project-link" type="text" placeholder="/ or https://…" />
+                </label>
+                <label class="grow">
+                  <span>Repo</span>
+                  <input id="project-repo" type="url" placeholder="https://github.com/…" />
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <section class="panel body-panel">
+            <h2 class="panel-title">Body</h2>
+            <textarea id="body" spellcheck="false" placeholder="Markdown…"></textarea>
+          </section>
+        </form>
+      </main>
+    </div>
+
+    <script>
+      const API = '/edit/api';
+      let mode = 'posts';
+      let currentId = null;
+      let dirty = false;
+
+      const els = {
+        status: document.getElementById('status'),
+        target: document.getElementById('editor-target'),
+        list: document.getElementById('item-list'),
+        sidebarLabel: document.getElementById('sidebar-label'),
+        postFields: document.getElementById('post-fields'),
+        projectFields: document.getElementById('project-fields'),
+        body: document.getElementById('body'),
+        preview: document.getElementById('preview-link'),
+        save: document.getElementById('save-btn'),
+        del: document.getElementById('delete-btn'),
+        newBtn: document.getElementById('new-btn'),
+        tabs: document.querySelectorAll('.tab'),
+        post: {
+          title: document.getElementById('post-title'),
+          description: document.getElementById('post-description'),
+          pubDate: document.getElementById('post-pubDate'),
+          updatedDate: document.getElementById('post-updatedDate'),
+          tags: document.getElementById('post-tags'),
+          project: document.getElementById('post-project'),
+          draft: document.getElementById('post-draft'),
+        },
+        project: {
+          title: document.getElementById('project-title'),
+          description: document.getElementById('project-description'),
+          year: document.getElementById('project-year'),
+          order: document.getElementById('project-order'),
+          featured: document.getElementById('project-featured'),
+          tech: document.getElementById('project-tech'),
+          link: document.getElementById('project-link'),
+          repo: document.getElementById('project-repo'),
+          draft: document.getElementById('project-draft'),
+        },
+      };
+
+      function setStatus(text, kind = '') {
+        els.status.textContent = text;
+        els.status.dataset.kind = kind;
+      }
+
+      function setTarget(text = '') {
+        els.target.textContent = text;
+      }
+
+      function itemLabel(id) {
+        if (!id) return '';
+        const dir = mode === 'posts' ? 'src/content/blog' : 'src/content/projects';
+        return `${dir}/${id}.md`;
+      }
+
+      function today() {
+        return new Date().toISOString().slice(0, 10);
+      }
+
+      function yearNow() {
+        return String(new Date().getFullYear());
+      }
+
+      function markDirty() {
+        dirty = true;
+        setStatus('Unsaved changes');
+      }
+
+      function markClean(msg = 'Saved') {
+        dirty = false;
+        setStatus(msg, 'ok');
+      }
+
+      async function api(path, opts = {}) {
+        const res = await fetch(`${API}${path}`, {
+          headers: { 'Content-Type': 'application/json' },
+          ...opts,
+        });
+        let data = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+        if (!res.ok) {
+          const msg =
+            data && typeof data === 'object' && data.error
+              ? data.error
+              : res.statusText || 'Request failed';
+          throw new Error(msg);
+        }
+        return data;
+      }
+
+      function asArray(data) {
+        return Array.isArray(data) ? data : [];
+      }
+
+      function normalizePostItem(item) {
+        const id = String(item?.id ?? '');
+        const fm = item?.frontmatter;
+        if (fm && typeof fm === 'object') {
+          return {
+            id,
+            broken: Boolean(item?.broken),
+            frontmatter: {
+              title: fm.title ?? id,
+              description: fm.description ?? '',
+              pubDate: fm.pubDate ?? '',
+              updatedDate: fm.updatedDate,
+              tags: Array.isArray(fm.tags) ? fm.tags : [],
+              draft: Boolean(fm.draft),
+              project: fm.project,
+            },
+          };
+        }
+        return {
+          id,
+          broken: Boolean(item?.broken),
+          frontmatter: {
+            title: item?.title ?? id,
+            description: '',
+            pubDate: '',
+            tags: [],
+            draft: false,
+          },
+        };
+      }
+
+      function normalizeProjectItem(item) {
+        const id = String(item?.id ?? '');
+        const fm = item?.frontmatter;
+        if (fm && typeof fm === 'object') {
+          return {
+            id,
+            broken: Boolean(item?.broken),
+            frontmatter: {
+              title: fm.title ?? id,
+              description: fm.description ?? '',
+              year: fm.year ?? '',
+              order: Number(fm.order) || 0,
+              featured: Boolean(fm.featured),
+              tech: Array.isArray(fm.tech) ? fm.tech : [],
+              link: fm.link,
+              repo: fm.repo,
+              draft: Boolean(fm.draft),
+            },
+          };
+        }
+        return {
+          id,
+          broken: Boolean(item?.broken),
+          frontmatter: {
+            title: item?.title ?? id,
+            description: '',
+            year: '',
+            order: 0,
+            featured: false,
+            tech: [],
+            draft: false,
+          },
+        };
+      }
+
+      function normalizePostRecord(record) {
+        const item = normalizePostItem(record);
+        return {
+          id: item.id,
+          broken: item.broken,
+          frontmatter: item.frontmatter,
+          body: typeof record?.body === 'string' ? record.body : '',
+        };
+      }
+
+      function normalizeProjectRecord(record) {
+        const item = normalizeProjectItem(record);
+        return {
+          id: item.id,
+          broken: item.broken,
+          frontmatter: item.frontmatter,
+          body: typeof record?.body === 'string' ? record.body : '',
+        };
+      }
+
+      async function refreshProjectOptions(selected = '') {
+        const raw = await api('/projects');
+        const projects = asArray(raw).map(normalizeProjectItem);
+        els.post.project.replaceChildren();
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = '— none —';
+        els.post.project.append(none);
+        for (const p of projects) {
+          if (!p.id) continue;
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.frontmatter.title || p.id;
+          els.post.project.append(opt);
+        }
+        els.post.project.value = selected;
+      }
+
+      function postFormData() {
+        return {
+          title: els.post.title.value.trim(),
+          description: els.post.description.value.trim(),
+          pubDate: els.post.pubDate.value,
+          updatedDate: els.post.updatedDate.value || undefined,
+          tags: els.post.tags.value,
+          project: els.post.project.value || undefined,
+          draft: els.post.draft.checked,
+          body: els.body.value,
+        };
+      }
+
+      function projectFormData() {
+        return {
+          title: els.project.title.value.trim(),
+          description: els.project.description.value.trim(),
+          year: els.project.year.value.trim() || yearNow(),
+          order: Number(els.project.order.value) || 0,
+          featured: els.project.featured.checked,
+          tech: els.project.tech.value,
+          link: els.project.link.value.trim() || undefined,
+          repo: els.project.repo.value.trim() || undefined,
+          draft: els.project.draft.checked,
+          body: els.body.value,
+        };
+      }
+
+      function fillPost(record) {
+        const { frontmatter: fm, body, id, broken } = normalizePostRecord(record);
+        if (!id) {
+          setStatus('Could not load post', 'err');
+          return;
+        }
+        currentId = id;
+        els.post.title.value = fm.title ?? '';
+        els.post.description.value = fm.description ?? '';
+        els.post.pubDate.value = fm.pubDate ?? today();
+        els.post.updatedDate.value = fm.updatedDate ?? '';
+        els.post.tags.value = (fm.tags ?? []).join(', ');
+        els.post.project.value = fm.project ?? '';
+        els.post.draft.checked = Boolean(fm.draft);
+        els.body.value = body;
+        els.preview.hidden = false;
+        els.preview.href = `/writing/${id}`;
+        els.del.disabled = false;
+        setTarget(itemLabel(id));
+        markClean(broken ? 'Loaded (parse issue — review & save)' : 'Loaded');
+      }
+
+      function fillProject(record) {
+        const { frontmatter: fm, body, id, broken } = normalizeProjectRecord(record);
+        if (!id) {
+          setStatus('Could not load project', 'err');
+          return;
+        }
+        currentId = id;
+        els.project.title.value = fm.title ?? '';
+        els.project.description.value = fm.description ?? '';
+        els.project.year.value = fm.year ?? yearNow();
+        els.project.order.value = String(fm.order ?? 0);
+        els.project.featured.checked = Boolean(fm.featured);
+        els.project.tech.value = (fm.tech ?? []).join(', ');
+        els.project.link.value = fm.link ?? '';
+        els.project.repo.value = fm.repo ?? '';
+        els.project.draft.checked = Boolean(fm.draft);
+        els.body.value = body;
+        els.preview.hidden = false;
+        els.preview.href = `/projects/${id}`;
+        els.del.disabled = false;
+        setTarget(itemLabel(id));
+        markClean(broken ? 'Loaded (parse issue — review & save)' : 'Loaded');
+      }
+
+      function blankPost() {
+        currentId = null;
+        els.post.title.value = '';
+        els.post.description.value = '';
+        els.post.pubDate.value = today();
+        els.post.updatedDate.value = '';
+        els.post.tags.value = '';
+        els.post.project.value = '';
+        els.post.draft.checked = false;
+        els.body.value = '';
+        els.preview.hidden = true;
+        els.del.disabled = true;
+        setTarget('New post — save to create a file');
+        markClean('New post');
+      }
+
+      function blankProject() {
+        currentId = null;
+        els.project.title.value = '';
+        els.project.description.value = '';
+        els.project.year.value = yearNow();
+        els.project.order.value = '0';
+        els.project.featured.checked = false;
+        els.project.tech.value = '';
+        els.project.link.value = '';
+        els.project.repo.value = '';
+        els.project.draft.checked = false;
+        els.body.value = '';
+        els.preview.hidden = true;
+        els.del.disabled = true;
+        setTarget('New project — save to create a file');
+        markClean('New project');
+      }
+
+      function blankForm() {
+        if (mode === 'posts') blankPost();
+        else blankProject();
+      }
+
+      async function loadList(activeId = currentId) {
+        const raw = await api(mode === 'posts' ? '/posts' : '/projects');
+        const normalize = mode === 'posts' ? normalizePostItem : normalizeProjectItem;
+        const items = asArray(raw).map(normalize);
+        els.list.replaceChildren();
+
+        if (items.length === 0) {
+          const empty = document.createElement('p');
+          empty.className = 'empty-list';
+          empty.textContent = mode === 'posts' ? 'No posts yet.' : 'No projects yet.';
+          els.list.append(empty);
+          return items;
+        }
+
+        for (const item of items) {
+          if (!item.id) continue;
+          const fm = item.frontmatter;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className =
+            'item' +
+            (item.id === activeId ? ' is-active' : '') +
+            (item.broken ? ' is-broken' : '');
+
+          const title = document.createElement('span');
+          title.className = 'item-title';
+          title.textContent = fm.title || item.id;
+
+          const meta = document.createElement('span');
+          meta.className = 'item-meta';
+          meta.textContent =
+            mode === 'posts'
+              ? fm.pubDate || 'No date'
+              : `${fm.year || '—'} · order ${fm.order ?? 0}`;
+
+          btn.append(title, meta);
+          btn.addEventListener('click', () => openItem(item.id));
+          els.list.append(btn);
+        }
+
+        return items;
+      }
+
+      async function openItem(id) {
+        if (!id) return;
+        if (dirty && !confirm('Discard unsaved changes?')) return;
+        try {
+          const record = await api(
+            `/${mode === 'posts' ? 'posts' : 'projects'}/${encodeURIComponent(id)}`,
+          );
+          if (mode === 'posts') fillPost(record);
+          else fillProject(record);
+          await loadList(id);
+        } catch (err) {
+          setStatus(err.message, 'err');
+        }
+      }
+
+      async function saveCurrent() {
+        const data = mode === 'posts' ? postFormData() : projectFormData();
+        if (!data.title || !data.description) {
+          setStatus('Title and description are required', 'err');
+          return;
+        }
+        if (mode === 'posts' && !data.pubDate) {
+          setStatus('Published date is required', 'err');
+          return;
+        }
+
+        try {
+          const base = mode === 'posts' ? '/posts' : '/projects';
+          if (currentId) {
+            await api(`${base}/${encodeURIComponent(currentId)}`, {
+              method: 'PUT',
+              body: JSON.stringify(data),
+            });
+            setTarget(itemLabel(currentId));
+            markClean(`Saved ${itemLabel(currentId)}`);
+          } else {
+            const created = await api(base, {
+              method: 'POST',
+              body: JSON.stringify(data),
+            });
+            currentId = created.id;
+            els.preview.hidden = false;
+            els.preview.href =
+              mode === 'posts' ? `/writing/${created.id}` : `/projects/${created.id}`;
+            els.del.disabled = false;
+            setTarget(itemLabel(created.id));
+            markClean(`Created ${itemLabel(created.id)}`);
+          }
+          await loadList(currentId);
+          if (mode === 'posts') await refreshProjectOptions(els.post.project.value);
+        } catch (err) {
+          setStatus(err.message, 'err');
+        }
+      }
+
+      async function deleteCurrent() {
+        if (!currentId) return;
+        const label = mode === 'posts' ? 'post' : 'project';
+        if (!confirm(`Delete this ${label} (${currentId}.md)?`)) return;
+
+        try {
+          const base = mode === 'posts' ? '/posts' : '/projects';
+          await api(`${base}/${encodeURIComponent(currentId)}`, { method: 'DELETE' });
+          blankForm();
+          await loadList();
+          if (mode === 'posts') await refreshProjectOptions();
+          markClean('Deleted');
+        } catch (err) {
+          setStatus(err.message, 'err');
+        }
+      }
+
+      async function switchMode(next) {
+        if (next === mode) return;
+        if (dirty && !confirm('Discard unsaved changes?')) return;
+        mode = next;
+        currentId = null;
+        dirty = false;
+
+        els.tabs.forEach((tab) => {
+          tab.classList.toggle('is-active', tab.dataset.mode === mode);
+        });
+        els.postFields.hidden = mode !== 'posts';
+        els.projectFields.hidden = mode !== 'projects';
+        els.sidebarLabel.textContent = mode === 'posts' ? 'Posts' : 'Projects';
+
+        try {
+          const items = await loadList();
+          if (items.length > 0) {
+            await openItem(items[0].id);
+          } else {
+            blankForm();
+          }
+        } catch (err) {
+          blankForm();
+          setStatus(err.message, 'err');
+        }
+      }
+
+      els.save.addEventListener('click', saveCurrent);
+      els.del.addEventListener('click', deleteCurrent);
+      els.newBtn.addEventListener('click', () => {
+        if (dirty && !confirm('Discard unsaved changes?')) return;
+        blankForm();
+        loadList(null);
+      });
+      els.tabs.forEach((tab) => {
+        tab.addEventListener('click', () => switchMode(tab.dataset.mode));
+      });
+
+      document.getElementById('editor').addEventListener('input', markDirty);
+      document.getElementById('editor').addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveCurrent();
+      });
+      document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+          e.preventDefault();
+          saveCurrent();
+        }
+      });
+
+      refreshProjectOptions()
+        .catch((err) => setStatus(`Project list unavailable: ${err.message}`, 'err'))
+        .then(() => loadList().catch((err) => setStatus(err.message, 'err')))
+        .then(() => blankPost())
+        .catch(() => blankPost());
+    </script>
+
+    <style>
+      :root {
+        --bg: #d2d6da;
+        --ink: #15161a;
+        --ink-soft: #6d7078;
+        --hair: rgba(21, 22, 26, 0.1);
+        --hair-strong: rgba(21, 22, 26, 0.18);
+        --panel: rgba(255, 255, 255, 0.72);
+        --panel-solid: #f5f6f8;
+        --danger: #8b2e2e;
+        --ok: #2e6644;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body { height: 100%; }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        color: var(--ink);
+        font-family: 'EB Garamond', 'Times New Roman', serif;
+        -webkit-font-smoothing: antialiased;
+        background:
+          radial-gradient(120% 115% at 50% 44%, transparent 52%, rgba(34, 38, 45, 0.28) 100%),
+          radial-gradient(72% 80% at 50% 44%, #e9ebee 0%, #d3d7db 52%, #bbc0c5 100%);
+      }
+
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: -1;
+        opacity: 0.05;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+
+      .top {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.5rem 1.1rem;
+        border-bottom: 1px solid var(--hair);
+        background: linear-gradient(
+          to bottom,
+          rgba(228, 231, 234, 0.92) 0%,
+          rgba(228, 231, 234, 0.75) 100%
+        );
+        backdrop-filter: blur(10px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+      }
+
+      .site-name {
+        font-size: 1.05rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: var(--ink);
+        text-decoration: none;
+      }
+
+      .site-name:hover { color: var(--ink-soft); }
+
+      .badge {
+        font-size: 0.62rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .tabs {
+        display: flex;
+        gap: 0.35rem;
+        padding: 0.2rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.45);
+        border: 1px solid var(--hair);
+      }
+
+      .tab {
+        font: inherit;
+        font-size: 0.72rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        padding: 0.45rem 0.9rem;
+        border: none;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--ink-soft);
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+
+      .tab:hover { color: var(--ink); }
+      .tab.is-active {
+        background: var(--ink);
+        color: #f5f6f8;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .status {
+        font-size: 0.85rem;
+        font-style: italic;
+        color: var(--ink-soft);
+        min-width: 6rem;
+        text-align: right;
+      }
+
+      .status[data-kind='ok'] { color: var(--ok); }
+      .status[data-kind='err'] { color: var(--danger); }
+
+      .editor-target {
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        color: var(--ink-soft);
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        max-width: 16rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      button, .ghost {
+        font: inherit;
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        border: 1px solid var(--hair-strong);
+        background: rgba(255, 255, 255, 0.55);
+        color: var(--ink);
+        border-radius: 999px;
+        padding: 0.45rem 0.85rem;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background 0.15s, border-color 0.15s;
+      }
+
+      button:hover, .ghost:hover {
+        background: rgba(255, 255, 255, 0.85);
+      }
+
+      button:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+
+      button.primary {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: #f5f6f8;
+      }
+
+      button.primary:hover { background: #2a2c32; }
+
+      button.danger {
+        color: var(--danger);
+        border-color: rgba(139, 46, 46, 0.25);
+      }
+
+      button.danger:hover { background: rgba(139, 46, 46, 0.06); }
+
+      .layout {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(220px, 280px) 1fr;
+      }
+
+      aside {
+        border-right: 1px solid var(--hair);
+        background: rgba(255, 255, 255, 0.35);
+        backdrop-filter: blur(6px);
+        overflow-y: auto;
+        padding: 1rem 0.75rem;
+      }
+
+      .sidebar-label {
+        font-size: 0.68rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        padding: 0 0.5rem 0.75rem;
+      }
+
+      .item-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .item {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.15rem;
+        text-align: left;
+        border: 1px solid transparent;
+        border-radius: 0.65rem;
+        padding: 0.65rem 0.75rem;
+        background: transparent;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+      }
+
+      .item:hover {
+        background: rgba(255, 255, 255, 0.45);
+      }
+
+      .item.is-active {
+        background: rgba(255, 255, 255, 0.72);
+        border-color: var(--hair-strong);
+      }
+
+      .item-title {
+        font-size: 1rem;
+        font-weight: 500;
+        line-height: 1.25;
+      }
+
+      .item-meta {
+        font-size: 0.78rem;
+        font-style: italic;
+        color: var(--ink-soft);
+      }
+
+      .item.is-broken .item-title {
+        color: var(--danger);
+      }
+
+      .empty-list {
+        font-size: 0.9rem;
+        font-style: italic;
+        color: var(--ink-soft);
+        padding: 0.5rem 0.75rem;
+      }
+
+      main {
+        overflow-y: auto;
+        padding: 1.25rem clamp(1rem, 3vw, 2rem) 2rem;
+      }
+
+      form {
+        max-width: 52rem;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .panel {
+        background: var(--panel);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--hair);
+        border-radius: 1rem;
+        padding: 1.1rem 1.15rem;
+        box-shadow: 0 12px 40px rgba(21, 22, 26, 0.06);
+      }
+
+      .panel-title {
+        font-size: 0.68rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        font-weight: 500;
+        margin-bottom: 0.9rem;
+      }
+
+      .field-stack,
+      .field-row {
+        display: flex;
+        gap: 0.85rem;
+        margin-bottom: 0.85rem;
+      }
+
+      .field-stack { flex-direction: column; }
+      .field-row { flex-wrap: wrap; align-items: flex-end; }
+      .field-row:last-child,
+      .field-stack:last-child { margin-bottom: 0; }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 0;
+      }
+
+      label.grow { flex: 1 1 12rem; }
+
+      label > span {
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      label.toggle {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+        padding-bottom: 0.55rem;
+        flex: 0 0 auto;
+      }
+
+      label.toggle > span {
+        text-transform: none;
+        letter-spacing: 0.02em;
+        font-size: 0.95rem;
+        color: var(--ink);
+      }
+
+      input, select, textarea {
+        font: inherit;
+        font-size: 1rem;
+        color: var(--ink);
+        border: 1px solid var(--hair-strong);
+        border-radius: 0.55rem;
+        padding: 0.55rem 0.7rem;
+        background: rgba(255, 255, 255, 0.82);
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+
+      input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: rgba(21, 22, 26, 0.35);
+        box-shadow: 0 0 0 3px rgba(21, 22, 26, 0.06);
+      }
+
+      label.toggle input {
+        width: 1rem;
+        height: 1rem;
+        padding: 0;
+        accent-color: var(--ink);
+      }
+
+      .body-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      textarea {
+        flex: 1;
+        min-height: calc(100vh - 22rem);
+        resize: vertical;
+        line-height: 1.55;
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        font-size: 0.88rem;
+      }
+
+      @media (max-width: 860px) {
+        .top {
+          grid-template-columns: 1fr;
+          justify-items: start;
+        }
+
+        .tabs { order: 1; }
+        .actions { width: 100%; justify-content: flex-start; }
+        .status { text-align: left; }
+
+        .layout { grid-template-columns: 1fr; }
+
+        aside {
+          max-height: 11rem;
+          border-right: none;
+          border-bottom: 1px solid var(--hair);
+        }
+      }
+    </style>
+  </body>
+</html>
