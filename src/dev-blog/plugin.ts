@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import {
@@ -14,6 +15,8 @@ import {
 const BLOG_DIR = path.resolve('src/content/blog');
 const PROJECTS_DIR = path.resolve('src/content/projects');
 const API = '/edit/api';
+/** Legacy prefix — kept so a stale dev server still works until restart. */
+const API_PREFIXES = [API, '/blog/api'] as const;
 
 type JsonBody = Record<string, unknown>;
 
@@ -42,6 +45,57 @@ async function readJson(req: IncomingMessage): Promise<JsonBody> {
   } catch {
     throw new Error('Invalid JSON body');
   }
+}
+
+/** Collect the request body as raw bytes — readBody() coerces to utf8 and would
+ *  corrupt binary, so image uploads need their own reader. */
+function readRawBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk) => chunks.push(chunk as Buffer));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+/** Image mime → file extension. Only these are accepted for upload. */
+const IMAGE_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'image/svg+xml': 'svg',
+};
+
+const MAX_UPLOAD = 12 * 1024 * 1024; // 12MB
+
+/** Save a pasted/dropped image beside the collection's Markdown with a random
+ *  uuid filename, so the post can reference it as ./<uuid>.<ext> regardless of
+ *  its own (possibly not-yet-chosen) filename. */
+async function handleUpload(req: IncomingMessage, res: ServerResponse) {
+  const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
+  const dir = query.get('collection') === 'projects' ? PROJECTS_DIR : BLOG_DIR;
+
+  const type = String(req.headers['content-type'] ?? '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+  const ext = IMAGE_EXT[type];
+  if (!ext) {
+    return sendJson(res, 415, { error: `Unsupported image type: ${type || 'unknown'}` });
+  }
+
+  const buf = await readRawBody(req);
+  if (buf.length === 0) return sendJson(res, 400, { error: 'Empty upload' });
+  if (buf.length > MAX_UPLOAD) {
+    return sendJson(res, 413, { error: 'Image too large (max 12MB)' });
+  }
+
+  await fs.mkdir(dir, { recursive: true });
+  const name = `${randomUUID()}.${ext}`;
+  await fs.writeFile(path.join(dir, name), buf);
+  return sendJson(res, 201, { path: `./${name}`, name });
 }
 
 function slugify(input: string): string {
@@ -201,6 +255,10 @@ async function handleApi(
   pathname: string,
 ) {
   try {
+    if (pathname === `${API}/uploads` && req.method === 'POST') {
+      return await handleUpload(req, res);
+    }
+
     if (pathname === `${API}/posts` && req.method === 'GET') {
       return sendJson(res, 200, await listPosts());
     }
@@ -338,8 +396,10 @@ export function devBlogPlugin(): Plugin {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url ?? '';
         const pathname = url.split('?')[0];
-        if (!pathname.startsWith(API)) return next();
-        await handleApi(req, res, pathname);
+        const prefix = API_PREFIXES.find((p) => pathname.startsWith(p));
+        if (!prefix) return next();
+        const apiPath = API + pathname.slice(prefix.length);
+        await handleApi(req, res, apiPath);
       });
     },
   };

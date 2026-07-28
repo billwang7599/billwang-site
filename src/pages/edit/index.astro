@@ -38,6 +38,10 @@ export const prerender = true;
       </div>
     </header>
 
+    <p id="api-banner" class="api-banner" hidden>
+      Editor API unavailable — stop the dev server and run <code>npm run dev</code> again.
+    </p>
+
     <div class="layout">
       <aside>
         <p class="sidebar-label" id="sidebar-label">Posts</p>
@@ -142,20 +146,41 @@ export const prerender = true;
 
           <section class="panel body-panel">
             <h2 class="panel-title">Body</h2>
-            <textarea id="body" spellcheck="false" placeholder="Markdown…"></textarea>
+            <textarea
+              id="body"
+              spellcheck="false"
+              placeholder="Markdown… — paste an image, or type /image to pick one"
+            ></textarea>
+            <input id="file-picker" type="file" accept="image/*" multiple hidden />
           </section>
         </form>
       </main>
     </div>
 
+    <div id="image-modal" class="modal" hidden>
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-label="Add image">
+        <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Drop an image, or click to browse">
+          <div>
+            <p class="dropzone-title">Drop an image here</p>
+            <p class="dropzone-sub">or click to browse</p>
+          </div>
+        </div>
+        <p id="modal-status" class="modal-status" aria-live="polite"></p>
+      </div>
+    </div>
+
     <script>
       const API = '/edit/api';
+      const API_FALLBACK = '/blog/api';
       let mode = 'posts';
       let currentId = null;
       let dirty = false;
 
       const els = {
         status: document.getElementById('status'),
+        banner: document.getElementById('api-banner'),
         target: document.getElementById('editor-target'),
         list: document.getElementById('item-list'),
         sidebarLabel: document.getElementById('sidebar-label'),
@@ -222,8 +247,12 @@ export const prerender = true;
         setStatus(msg, 'ok');
       }
 
-      async function api(path, opts = {}) {
-        const res = await fetch(`${API}${path}`, {
+      function setApiOk(ok) {
+        els.banner.hidden = ok;
+      }
+
+      async function apiFetch(base, path, opts = {}) {
+        const res = await fetch(`${base}${path}`, {
           headers: { 'Content-Type': 'application/json' },
           ...opts,
         });
@@ -238,9 +267,31 @@ export const prerender = true;
             data && typeof data === 'object' && data.error
               ? data.error
               : res.statusText || 'Request failed';
-          throw new Error(msg);
+          const err = new Error(msg);
+          err.status = res.status;
+          throw err;
         }
         return data;
+      }
+
+      async function api(path, opts = {}) {
+        try {
+          const data = await apiFetch(API, path, opts);
+          setApiOk(true);
+          return data;
+        } catch (err) {
+          if (err.status === 404) {
+            try {
+              const data = await apiFetch(API_FALLBACK, path, opts);
+              setApiOk(true);
+              return data;
+            } catch {
+              // fall through
+            }
+          }
+          setApiOk(false);
+          throw new Error('Editor API unavailable — restart npm run dev');
+        }
       }
 
       function asArray(data) {
@@ -629,11 +680,219 @@ export const prerender = true;
         }
       });
 
-      refreshProjectOptions()
-        .catch((err) => setStatus(`Project list unavailable: ${err.message}`, 'err'))
-        .then(() => loadList().catch((err) => setStatus(err.message, 'err')))
-        .then(() => blankPost())
-        .catch(() => blankPost());
+      // ---- Image paste / drop -------------------------------------------
+      // Upload an image blob to the dev API (which writes it beside the
+      // collection's Markdown under a uuid name) and return its ./path.
+      async function uploadImage(file) {
+        const q = `/uploads?collection=${mode}`;
+        const bases = [API, API_FALLBACK];
+        for (let i = 0; i < bases.length; i++) {
+          const last = i === bases.length - 1;
+          try {
+            const res = await fetch(`${bases[i]}${q}`, {
+              method: 'POST',
+              headers: { 'Content-Type': file.type },
+              body: file,
+            });
+            if (res.status === 404 && !last) continue; // stale server → try fallback
+            const data = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(data?.error || 'Upload failed');
+            setApiOk(true);
+            return data.path;
+          } catch (err) {
+            if (last) {
+              setApiOk(false);
+              throw new Error(err?.message || 'Editor API unavailable — restart npm run dev');
+            }
+          }
+        }
+      }
+
+      // Insert text at the caret, keeping the image on its own line.
+      function insertAtCursor(textarea, text) {
+        const start = textarea.selectionStart ?? textarea.value.length;
+        const end = textarea.selectionEnd ?? start;
+        const before = textarea.value.slice(0, start);
+        const after = textarea.value.slice(end);
+        const lead = before.length && !before.endsWith('\n') ? '\n' : '';
+        const snippet = `${lead}${text}\n`;
+        textarea.value = before + snippet + after;
+        const caret = (before + snippet).length;
+        textarea.selectionStart = textarea.selectionEnd = caret;
+        textarea.focus();
+      }
+
+      async function addImages(files) {
+        const images = Array.from(files).filter((f) => f.type.startsWith('image/'));
+        if (images.length === 0) return false;
+        for (const file of images) {
+          setStatus('Uploading image…');
+          try {
+            const url = await uploadImage(file);
+            insertAtCursor(els.body, `![](${url})`);
+            dirty = true;
+            setStatus('Image added — save to keep');
+          } catch (err) {
+            setStatus(err.message, 'err');
+          }
+        }
+        return true;
+      }
+
+      // Pull image File objects out of a clipboard/drop payload. Note:
+      // DataTransferItemList is array-like but NOT spread-iterable in Chrome/
+      // Safari — Array.from() is required, [...items] throws.
+      function imageFilesFrom(dt) {
+        if (!dt) return [];
+        let files = Array.from(dt.items ?? [])
+          .filter((it) => it.kind === 'file')
+          .map((it) => it.getAsFile())
+          .filter((f) => f && f.type.startsWith('image/'));
+        if (files.length === 0) {
+          files = Array.from(dt.files ?? []).filter((f) => f.type.startsWith('image/'));
+        }
+        return files;
+      }
+
+      els.body.addEventListener('paste', (e) => {
+        const files = imageFilesFrom(e.clipboardData);
+        if (files.length === 0) return; // plain text → let the textarea handle it
+        e.preventDefault();
+        addImages(files);
+      });
+
+      els.body.addEventListener('dragover', (e) => {
+        if (Array.from(e.dataTransfer?.items ?? []).some((it) => it.type.startsWith('image/'))) {
+          e.preventDefault();
+        }
+      });
+
+      els.body.addEventListener('drop', (e) => {
+        const files = imageFilesFrom(e.dataTransfer);
+        if (files.length === 0) return;
+        e.preventDefault();
+        addImages(files);
+      });
+
+      // ---- /image (alias /file): a drop-or-browse popup -------------------
+      const modal = document.getElementById('image-modal');
+      const dropzone = document.getElementById('dropzone');
+      const modalStatus = document.getElementById('modal-status');
+      const filePicker = document.getElementById('file-picker');
+
+      function setModalStatus(text = '', kind = '') {
+        modalStatus.textContent = text;
+        modalStatus.dataset.kind = kind;
+      }
+
+      function openImageModal() {
+        setModalStatus('');
+        dropzone.classList.remove('is-over');
+        modal.hidden = false;
+        dropzone.focus();
+      }
+
+      function closeImageModal() {
+        modal.hidden = true;
+        dropzone.classList.remove('is-over');
+        els.body.focus();
+      }
+
+      async function addImagesFromModal(files) {
+        const images = Array.from(files).filter((f) => f.type.startsWith('image/'));
+        if (images.length === 0) {
+          setModalStatus('That wasn’t an image', 'err');
+          return;
+        }
+        setModalStatus('Uploading…');
+        for (const file of images) {
+          try {
+            const url = await uploadImage(file);
+            insertAtCursor(els.body, `![](${url})`);
+            dirty = true;
+          } catch (err) {
+            setModalStatus(err.message, 'err');
+            return;
+          }
+        }
+        setStatus('Image added — save to keep');
+        closeImageModal();
+      }
+
+      function browse() {
+        filePicker.value = '';
+        filePicker.click();
+      }
+
+      dropzone.addEventListener('click', browse);
+      dropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          browse();
+        }
+      });
+      filePicker.addEventListener('change', () => {
+        if (filePicker.files?.length) addImagesFromModal(filePicker.files);
+      });
+
+      ['dragenter', 'dragover'].forEach((ev) =>
+        dropzone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          dropzone.classList.add('is-over');
+        }),
+      );
+      ['dragleave', 'dragend'].forEach((ev) =>
+        dropzone.addEventListener(ev, () => dropzone.classList.remove('is-over')),
+      );
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('is-over');
+        if (e.dataTransfer?.files?.length) addImagesFromModal(e.dataTransfer.files);
+      });
+
+      modal.querySelectorAll('[data-close]').forEach((el) =>
+        el.addEventListener('click', closeImageModal),
+      );
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal.hidden) closeImageModal();
+      });
+
+      // Slash command: "/image" or "/file" + Enter opens the popup.
+      els.body.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || e.shiftKey) return;
+        const caret = els.body.selectionStart;
+        const match = els.body.value.slice(0, caret).match(/(?:^|\s)\/(image|file)$/i);
+        if (!match) return;
+        e.preventDefault();
+        const cmdLen = 1 + match[1].length; // slash + word
+        const before = els.body.value.slice(0, caret - cmdLen);
+        const after = els.body.value.slice(caret);
+        els.body.value = before + after;
+        els.body.selectionStart = els.body.selectionEnd = before.length;
+        openImageModal();
+      });
+
+      async function boot() {
+        try {
+          await refreshProjectOptions();
+        } catch {
+          // project dropdown is optional on first load
+        }
+        try {
+          const items = await loadList();
+          if (items.length > 0) {
+            dirty = false;
+            await openItem(items[0].id);
+          } else {
+            blankForm();
+          }
+        } catch (err) {
+          blankForm();
+          setStatus(err.message, 'err');
+        }
+      }
+
+      boot();
     </script>
 
     <style>
@@ -769,6 +1028,20 @@ export const prerender = true;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .api-banner {
+        margin: 0;
+        padding: 0.65rem 1.25rem;
+        font-size: 0.85rem;
+        color: var(--danger);
+        background: rgba(139, 46, 46, 0.08);
+        border-bottom: 1px solid rgba(139, 46, 46, 0.15);
+      }
+
+      .api-banner code {
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        font-size: 0.8em;
       }
 
       button, .ghost {
@@ -1017,6 +1290,95 @@ export const prerender = true;
           border-bottom: 1px solid var(--hair);
         }
       }
+
+      /* ---- Image popup --------------------------------------------------- */
+      .modal[hidden] { display: none; }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+      }
+
+      .modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(21, 22, 26, 0.34);
+        backdrop-filter: blur(3px);
+      }
+
+      .modal-card {
+        position: relative;
+        width: min(30rem, 100%);
+        background: var(--panel-solid);
+        border: 1px solid var(--hair-strong);
+        border-radius: 1.1rem;
+        padding: 1.5rem;
+        box-shadow: 0 24px 70px rgba(21, 22, 26, 0.28);
+      }
+
+      .modal-close {
+        position: absolute;
+        top: 0.55rem;
+        right: 0.55rem;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        font-size: 1.2rem;
+        line-height: 1;
+        letter-spacing: 0;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--ink-soft);
+      }
+
+      .modal-close:hover { background: rgba(21, 22, 26, 0.06); color: var(--ink); }
+
+      .dropzone {
+        display: grid;
+        place-items: center;
+        text-align: center;
+        min-height: 12rem;
+        border: 2px dashed var(--hair-strong);
+        border-radius: 0.9rem;
+        background: rgba(255, 255, 255, 0.5);
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+      }
+
+      .dropzone:hover { border-color: rgba(21, 22, 26, 0.4); }
+      .dropzone:focus-visible { outline: none; border-color: var(--ink); }
+
+      .dropzone.is-over {
+        border-color: var(--ink);
+        background: rgba(21, 22, 26, 0.05);
+      }
+
+      .dropzone-title { font-size: 1.15rem; font-weight: 500; }
+
+      .dropzone-sub {
+        margin-top: 0.35rem;
+        font-size: 0.9rem;
+        font-style: italic;
+        color: var(--ink-soft);
+      }
+
+      .modal-status {
+        margin-top: 0.9rem;
+        min-height: 1.2rem;
+        text-align: center;
+        font-size: 0.85rem;
+        font-style: italic;
+        color: var(--ink-soft);
+      }
+
+      .modal-status[data-kind='err'] { color: var(--danger); font-style: normal; }
     </style>
   </body>
 </html>

@@ -73,14 +73,42 @@ const {
     </main>
 
     <footer class="site-footer">
-      <a href="mailto:me@billwang.dev">me@billwang.dev</a>
-      <span class="sep" aria-hidden="true">&middot;</span>
-      <a href="https://github.com/billwang7599">GitHub</a>
-      <span class="sep" aria-hidden="true">&middot;</span>
-      <a href="https://www.linkedin.com/in/bw7599">LinkedIn</a>
-      <span class="sep" aria-hidden="true">&middot;</span>
-      <a href="/rss.xml">RSS</a>
+      <!-- Second chance at the sections: the top-right nav is easy to miss, so
+           whoever reads to the end of a page lands on a full-size way onward.
+           The section you're already on is omitted — this only points forward. -->
+      <nav class="footer-nav" aria-label="Sections">
+        {
+          current !== 'projects' && (
+            <a href="/projects">
+              Projects <span class="arrow" aria-hidden="true">&rarr;</span>
+            </a>
+          )
+        }
+        {
+          current !== 'writing' && (
+            <a href="/writing">
+              Writing <span class="arrow" aria-hidden="true">&rarr;</span>
+            </a>
+          )
+        }
+      </nav>
+      <p class="footer-links">
+        <a href="mailto:me@billwang.dev">me@billwang.dev</a>
+        <span class="sep" aria-hidden="true">&middot;</span>
+        <a href="https://github.com/billwang7599">GitHub</a>
+        <span class="sep" aria-hidden="true">&middot;</span>
+        <a href="https://www.linkedin.com/in/bw7599">LinkedIn</a>
+        <span class="sep" aria-hidden="true">&middot;</span>
+        <a href="/rss.xml">RSS</a>
+      </p>
     </footer>
+
+    <!-- Custom scrollbar. The native one is hidden site-wide; this is its
+         replacement — a hairline thumb that surfaces while you scroll, and is
+         draggable/clickable like the real thing. Driven by the script below. -->
+    <div class="scrollbar" aria-hidden="true" hidden>
+      <div class="thumb"></div>
+    </div>
 
     <script>
       // Smooth internal navigation: fade the page down into the shared vitrine
@@ -127,6 +155,190 @@ const {
       });
     </script>
 
+    <script>
+      // Eased scrolling + the custom scrollbar. The native bar is hidden in CSS;
+      // everything visible on the right edge is driven from here.
+      //
+      // The easing is a lerp toward a target offset rather than a transformed
+      // wrapper, so the sticky nav, the fixed grain layer and anchor offsets all
+      // keep working untouched.
+      const bar = document.querySelector<HTMLElement>('.scrollbar')!;
+      const thumb = bar.querySelector<HTMLElement>('.thumb')!;
+      const docEl = document.documentElement;
+
+      const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+      const maxScroll = () => Math.max(0, docEl.scrollHeight - window.innerHeight);
+
+      // Touch already has momentum of its own, and reduced-motion asks for none.
+      // In both cases the scrollbar still runs; only the easing is skipped.
+      const eased =
+        window.matchMedia('(pointer: fine)').matches &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      /* ---- the eased loop ---------------------------------------------- */
+      let current = window.scrollY; // our float position, free of pixel rounding
+      let target = current;
+      let raf: number | null = null;
+
+      const step = () => {
+        const diff = target - current;
+        if (Math.abs(diff) < 0.4) {
+          current = target;
+          raf = null;
+        } else {
+          current += diff * 0.16;
+          raf = requestAnimationFrame(step);
+        }
+        window.scrollTo({ top: current, behavior: 'instant' as ScrollBehavior });
+      };
+
+      const easeTo = (y: number) => {
+        target = clamp(y, 0, maxScroll());
+        if (!eased) {
+          window.scrollTo({ top: target, behavior: 'smooth' });
+          return;
+        }
+        if (raf === null) {
+          current = window.scrollY;
+          raf = requestAnimationFrame(step);
+        }
+      };
+
+      // Used while dragging the thumb, where the position should track the
+      // pointer exactly rather than trail behind it.
+      const jumpTo = (y: number) => {
+        current = target = clamp(y, 0, maxScroll());
+        window.scrollTo({ top: current, behavior: 'instant' as ScrollBehavior });
+      };
+
+      // A wheel over something with its own scroll (a wide code block) belongs
+      // to that element, not the page.
+      const scrollsItself = (node: EventTarget | null) => {
+        let el: Element | null = node instanceof Element ? node : null;
+        while (el && el !== document.body) {
+          const s = getComputedStyle(el);
+          if (/auto|scroll/.test(s.overflowY) && el.scrollHeight > el.clientHeight) return true;
+          if (/auto|scroll/.test(s.overflowX) && el.scrollWidth > el.clientWidth) return true;
+          el = el.parentElement;
+        }
+        return false;
+      };
+
+      if (eased) {
+        docEl.classList.add('has-eased-scroll');
+        window.addEventListener(
+          'wheel',
+          (e) => {
+            if (e.ctrlKey) return; // pinch-zoom
+            if (scrollsItself(e.target)) return;
+            const max = maxScroll();
+            if (max <= 0) return;
+            e.preventDefault();
+            // Anything that moved the page since the last frame (keys, find-in-
+            // page) is now the truth — start from there.
+            if (raf === null) current = target = window.scrollY;
+            const lines = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+            target = clamp(target + e.deltaY * lines, 0, max);
+            if (raf === null) raf = requestAnimationFrame(step);
+          },
+          { passive: false },
+        );
+      }
+
+      // In-page anchors: html's `scroll-behavior: smooth` is off while the loop
+      // owns scrolling, so ease them here instead — offset to clear the nav.
+      document.addEventListener('click', (e) => {
+        if (e.defaultPrevented || e.button !== 0) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        const href = (e.target as HTMLElement).closest('a')?.getAttribute('href');
+        if (!href || href.length < 2 || !href.startsWith('#')) return;
+        const el = document.getElementById(decodeURIComponent(href.slice(1)));
+        if (!el) return;
+        e.preventDefault();
+        history.pushState(null, '', href);
+        easeTo(el.getBoundingClientRect().top + window.scrollY - 96);
+      });
+
+      /* ---- the scrollbar ------------------------------------------------ */
+      let hideTimer: number | undefined;
+      let dragging = false;
+
+      const draw = () => {
+        const max = maxScroll();
+        if (max <= 0) {
+          bar.hidden = true;
+          return;
+        }
+        bar.hidden = false;
+        const track = bar.clientHeight;
+        const h = Math.max(32, Math.round(track * (window.innerHeight / docEl.scrollHeight)));
+        const y = (track - h) * (clamp(window.scrollY, 0, max) / max);
+        thumb.style.height = `${h}px`;
+        thumb.style.transform = `translateY(${y}px)`;
+      };
+
+      const flash = () => {
+        bar.classList.add('is-visible');
+        clearTimeout(hideTimer);
+        hideTimer = window.setTimeout(() => bar.classList.remove('is-visible'), 900);
+      };
+
+      window.addEventListener(
+        'scroll',
+        () => {
+          // Keep the loop honest about scrolls it didn't cause.
+          if (raf === null) current = target = window.scrollY;
+          draw();
+          flash();
+        },
+        { passive: true },
+      );
+
+      // Drag the thumb.
+      let grabY = 0;
+      let grabScroll = 0;
+      thumb.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        grabY = e.clientY;
+        grabScroll = window.scrollY;
+        bar.classList.add('is-dragging');
+        thumb.setPointerCapture(e.pointerId);
+        e.preventDefault();
+        e.stopPropagation(); // not also a track click
+      });
+      thumb.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const room = bar.clientHeight - thumb.offsetHeight;
+        if (room <= 0) return;
+        jumpTo(grabScroll + ((e.clientY - grabY) * maxScroll()) / room);
+      });
+      const endDrag = () => {
+        if (!dragging) return;
+        dragging = false;
+        bar.classList.remove('is-dragging');
+        flash();
+      };
+      thumb.addEventListener('pointerup', endDrag);
+      thumb.addEventListener('pointercancel', endDrag);
+
+      // Click the track to ease to that spot.
+      bar.addEventListener('pointerdown', (e) => {
+        const room = bar.clientHeight - thumb.offsetHeight;
+        if (room <= 0) return;
+        const y = clamp(
+          e.clientY - bar.getBoundingClientRect().top - thumb.offsetHeight / 2,
+          0,
+          room,
+        );
+        easeTo((y / room) * maxScroll());
+      });
+
+      // The page grows as images load and as the tag filter hides rows.
+      new ResizeObserver(draw).observe(document.body);
+      window.addEventListener('resize', draw);
+      draw();
+    </script>
+
     <style is:global>
       :root {
         --bg: #d2d6da;
@@ -149,6 +361,18 @@ const {
            on the vertical axis. */
         background: var(--bg);
         overscroll-behavior-y: none;
+        /* No native gutter — .scrollbar below stands in for it. */
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      html::-webkit-scrollbar {
+        display: none;
+      }
+      /* The rAF easing below drives scrollTo frame by frame; native smooth
+         behaviour on top of that would fight it. Anchors get their easing from
+         the same loop instead. */
+      html.has-eased-scroll {
+        scroll-behavior: auto;
       }
       body {
         min-height: 100vh;
@@ -173,6 +397,65 @@ const {
         z-index: -1;
         opacity: 0.05;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+
+      /* ---- Custom scrollbar ---------------------------------------------- */
+      /* Sits in the right margin, past the centred measure, so it never crosses
+         text. Idle-hidden; the script fades it in while the page is moving. */
+      .scrollbar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 11px;
+        z-index: 3;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+      .scrollbar.is-visible,
+      .scrollbar.is-dragging,
+      .scrollbar:hover {
+        opacity: 1;
+      }
+      .scrollbar .thumb {
+        position: absolute;
+        top: 0;
+        right: 4px;
+        width: 3px;
+        border-radius: 999px;
+        background: rgba(21, 22, 26, 0.3);
+        cursor: grab;
+        transition:
+          width 0.18s ease,
+          background 0.18s ease;
+      }
+      .scrollbar:hover .thumb,
+      .scrollbar.is-dragging .thumb {
+        width: 5px;
+        background: rgba(21, 22, 26, 0.5);
+      }
+      .scrollbar.is-dragging .thumb {
+        cursor: grabbing;
+      }
+      /* Touch has its own transient indicator, and an 11px strip pinned to the
+         edge of a phone screen is only in the way. */
+      @media (pointer: coarse) {
+        .scrollbar {
+          display: none;
+        }
+      }
+      /* Code blocks keep their own horizontal scroll — give it the same
+         hairline treatment rather than the platform default. */
+      .prose pre::-webkit-scrollbar {
+        height: 7px;
+      }
+      .prose pre::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: rgba(21, 22, 26, 0.22);
+      }
+      .prose pre {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(21, 22, 26, 0.22) transparent;
       }
 
       /* ---- Site chrome --------------------------------------------------- */
@@ -211,18 +494,43 @@ const {
       }
       .site-nav nav {
         display: flex;
-        gap: 1.5rem;
+        gap: clamp(1.25rem, 4vw, 2rem);
       }
+      /* Full ink, not the soft grey — these were quiet enough to read as
+         decoration. Each carries a rule that draws in on hover and stays put on
+         the current section, so the pair reads as tabs you can act on. */
       .site-nav nav a {
-        font-size: 0.8rem;
+        position: relative;
+        font-size: 0.82rem;
         letter-spacing: 0.22em;
         text-transform: uppercase;
-        color: var(--ink-soft);
+        color: var(--ink);
+        padding-bottom: 0.4rem;
         transition: color 0.2s ease;
       }
-      .site-nav nav a:hover,
-      .site-nav nav a.current {
-        color: var(--ink);
+      .site-nav nav a::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        /* Uppercase tracking leaves a trailing gap after the last glyph; pull
+           the rule back by the same amount so it sits under the word. */
+        right: 0.22em;
+        bottom: 0;
+        height: 1px;
+        background: currentColor;
+        opacity: 0.55;
+        transform: scaleX(0);
+        transform-origin: left center;
+        transition:
+          transform 0.3s cubic-bezier(0.2, 0.65, 0.2, 1),
+          opacity 0.2s ease;
+      }
+      .site-nav nav a:hover::after {
+        transform: scaleX(1);
+      }
+      .site-nav nav a.current::after {
+        transform: scaleX(1);
+        opacity: 1;
       }
 
       /* ---- Page wrapper -------------------------------------------------- */
@@ -413,6 +721,33 @@ const {
       .sep {
         margin: 0 0.65rem;
         opacity: 0.45;
+      }
+      .footer-nav {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: clamp(1.5rem, 6vw, 3rem);
+        margin-bottom: clamp(1.4rem, 4vw, 2rem);
+        padding-bottom: clamp(1.4rem, 4vw, 2rem);
+        border-bottom: 1px solid var(--hair);
+      }
+      .site-footer .footer-nav a {
+        font-size: clamp(1.2rem, 3.6vw, 1.5rem);
+        letter-spacing: 0.02em;
+        color: var(--ink);
+        padding-bottom: 0.2rem;
+        border-bottom: 1px solid var(--hair-strong);
+        transition: border-color 0.2s ease;
+      }
+      .site-footer .footer-nav a:hover {
+        border-bottom-color: var(--ink);
+      }
+      .footer-nav .arrow {
+        display: inline-block;
+        transition: transform 0.2s ease;
+      }
+      .site-footer .footer-nav a:hover .arrow {
+        transform: translateX(4px);
       }
 
       /* ---- Prose (rendered Markdown, shared by posts + projects) -------- */
