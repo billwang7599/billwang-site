@@ -2,9 +2,8 @@
 title: "Intro to Socket Programming"
 description: "How to use sockets on your computer and simulating iPerf using C++."
 pubDate: 2025-10-01
-tags: ["tutorial", "networks"]
+tags: ["networks"]
 ---
-
 ## Prelude
 
 We're going to talk about sockets, socket programming, and creating a mini `iPerf` clone. `iPerf` is essentially a tool to measure throughput on a network.

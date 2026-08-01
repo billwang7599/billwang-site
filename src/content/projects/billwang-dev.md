@@ -4,12 +4,11 @@ description: "A rotatable 3D business card rendered with Three.js — letterpres
 year: "2026"
 order: 100
 featured: true
-tech: ["Three.js", "Astro", "TypeScript", "Cloudflare Workers"]
-link: "/"
+tech: ["Three.js","Astro","TypeScript","Cloudflare Workers"]
+link: /
 repo: "https://github.com/billwang7599"
-draft: false
+draft: true
 ---
-
 The landing page is a single object: a business card you can pick up and turn
 over. No hero text, no nav — just the card, spotlit in a cool gallery-grey
 vitrine, waiting to be dragged.

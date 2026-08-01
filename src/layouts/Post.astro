@@ -1,7 +1,7 @@
 ---
 // Single blog-post layout. Sits on Base for all shared chrome and prose styling;
 // adds the post header (kicker, title, dateline, reading time, tags) and the
-// previous/next footer nav. The rendered Markdown body arrives through <slot />.
+// back link. The rendered Markdown body arrives through <slot />.
 import Base from './Base.astro';
 
 interface Props {
@@ -12,8 +12,6 @@ interface Props {
   tags?: string[];
   slug: string;
   minutes: number;
-  prev?: { slug: string; title: string };
-  next?: { slug: string; title: string };
   project?: { slug: string; title: string };
 }
 
@@ -25,8 +23,6 @@ const {
   tags = [],
   slug,
   minutes,
-  prev,
-  next,
   project,
 } = Astro.props;
 
@@ -55,9 +51,20 @@ const canonical = `https://billwang.dev/writing/${slug}`;
       <p class="kicker">
         {
           project ? (
-            <a href={`/projects/${project.slug}`}>{project.title}</a>
+            <a href={`/projects/${project.slug}`}>
+              <span class="lead">Part of</span>
+              <span class="name">{project.title}</span>
+              <span class="arrow" aria-hidden="true">
+                &rarr;
+              </span>
+            </a>
           ) : (
-            <a href="/writing">Writing</a>
+            <a href="/writing">
+              <span class="arrow back" aria-hidden="true">
+                &larr;
+              </span>
+              <span class="name">Writing</span>
+            </a>
           )
         }
       </p>
@@ -82,29 +89,6 @@ const canonical = `https://billwang.dev/writing/${slug}`;
       <slot />
     </div>
 
-    <nav class="post-nav" aria-label="Post navigation">
-      {
-        prev ? (
-          <a class="prev" href={`/writing/${prev.slug}`}>
-            <span class="dir">← Newer</span>
-            <span class="ptitle">{prev.title}</span>
-          </a>
-        ) : (
-          <span />
-        )
-      }
-      {
-        next ? (
-          <a class="next" href={`/writing/${next.slug}`}>
-            <span class="dir">Older →</span>
-            <span class="ptitle">{next.title}</span>
-          </a>
-        ) : (
-          <span />
-        )
-      }
-    </nav>
-
     <p class="all-link"><a href="/writing">← All writing</a></p>
   </article>
 
@@ -119,13 +103,49 @@ const canonical = `https://billwang.dev/writing/${slug}`;
       color: var(--ink-soft);
       margin-bottom: 1.25rem;
     }
+    /* This was styled as a label and read as one — nothing said it was a way
+       through to the project. Now: a "Part of" lead-in that names what the
+       link does, the title in full ink with a rule under it, and an arrow that
+       nudges on hover. */
     .kicker a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6em;
       color: var(--ink-soft);
       text-decoration: none;
-      transition: color 0.2s ease;
     }
-    .kicker a:hover {
+    .kicker .lead {
+      opacity: 0.75;
+    }
+    .kicker .name {
+      position: relative;
       color: var(--ink);
+    }
+    .kicker .name::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      /* Uppercase tracking leaves a gap after the last glyph — pull the rule
+         back by the same amount so it ends with the word. */
+      right: 0.34em;
+      bottom: -0.35em;
+      height: 1px;
+      background: currentColor;
+      opacity: 0.4;
+      transition: opacity 0.2s ease;
+    }
+    .kicker a:hover .name::after {
+      opacity: 1;
+    }
+    .kicker .arrow {
+      display: inline-block;
+      transition: transform 0.2s ease;
+    }
+    .kicker a:hover .arrow {
+      transform: translateX(3px);
+    }
+    .kicker a:hover .arrow.back {
+      transform: translateX(-3px);
     }
     .post-header h1 {
       font-weight: 500;
@@ -147,45 +167,12 @@ const canonical = `https://billwang.dev/writing/${slug}`;
       margin-top: 1.1rem;
     }
 
-    .post-nav {
+    /* Carries the closing rule the prev/next nav used to draw, so the body
+       still ends on a line rather than trailing off. */
+    .all-link {
       margin-top: clamp(3rem, 8vw, 4.5rem);
       padding-top: 1.5rem;
       border-top: 1px solid var(--hair);
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.5rem;
-    }
-    .post-nav a {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-      text-decoration: none;
-      color: var(--ink);
-    }
-    .post-nav .next {
-      text-align: right;
-    }
-    .post-nav .dir {
-      font-size: 0.7rem;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      color: var(--ink-soft);
-    }
-    .post-nav .ptitle {
-      font-size: 1.05rem;
-      border-bottom: 1px solid transparent;
-      transition: border-color 0.2s ease;
-      width: fit-content;
-    }
-    .post-nav .next .ptitle {
-      margin-left: auto;
-    }
-    .post-nav a:hover .ptitle {
-      border-bottom-color: var(--ink);
-    }
-
-    .all-link {
-      margin-top: 2rem;
     }
     .all-link a {
       color: var(--ink-soft);
