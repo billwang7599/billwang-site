@@ -111,15 +111,20 @@
         place-items: center;
       }
       /* Full-viewport canvas; the card is centered by the camera. Starts hidden
-         and is faded up by the entrance animation in card.ts. */
+         and is faded up by the entrance animation in card.ts.
+         Sized off the fixed, inset-0 <main> rather than 100vw/100vh: on phones
+         100vh is the URL-bar-hidden height, so the canvas overhung the screen
+         and the card's framing sat lower than it looked. card.ts observes this
+         box for its render size, so the two can't drift apart. */
       #card-canvas {
         display: block;
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
         touch-action: none; /* let pointer drag rotate instead of scrolling */
         cursor: grab;
         opacity: 0;
         will-change: opacity;
+        -webkit-tap-highlight-color: transparent;
       }
       #card-canvas:active {
         cursor: grabbing;
@@ -169,6 +174,18 @@
           opacity: 1;
         }
       }
+      /* The spotlight is sized in percentages of the viewport, so on a tall
+         narrow screen it stretched into a vertical column of light while the
+         card shrank to a horizontal sliver in the middle of it. Re-proportion
+         the pool on phones so it still reads as a spotlit vitrine. */
+      @media (orientation: portrait) and (max-width: 700px) {
+        body {
+          background:
+            radial-gradient(130% 65% at 50% 44%, transparent 52%, rgba(34, 38, 45, 0.32) 100%),
+            radial-gradient(115% 40% at 50% 44%, #e9ebee 0%, #d3d7db 52%, #bbc0c5 100%);
+        }
+      }
+
       @media (prefers-reduced-motion: reduce) {
         #hint {
           animation-delay: 0.3s;

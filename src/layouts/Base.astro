@@ -73,25 +73,6 @@ const {
     </main>
 
     <footer class="site-footer">
-      <!-- Second chance at the sections: the top-right nav is easy to miss, so
-           whoever reads to the end of a page lands on a full-size way onward.
-           The section you're already on is omitted — this only points forward. -->
-      <nav class="footer-nav" aria-label="Sections">
-        {
-          current !== 'projects' && (
-            <a href="/projects">
-              Projects <span class="arrow" aria-hidden="true">&rarr;</span>
-            </a>
-          )
-        }
-        {
-          current !== 'writing' && (
-            <a href="/writing">
-              Writing <span class="arrow" aria-hidden="true">&rarr;</span>
-            </a>
-          )
-        }
-      </nav>
       <p class="footer-links">
         <a href="mailto:me@billwang.dev">me@billwang.dev</a>
         <span class="sep" aria-hidden="true">&middot;</span>
@@ -608,7 +589,17 @@ const {
           transform: none;
         }
       }
+      /* The `from` is spelled out on purpose. Without it the start value comes
+         from each element's underlying style, and .site-nav declares
+         `opacity: 0` (nav-in only holds it at 1 through its fill). Swapping in
+         this animation cancels nav-in, so the bar would snap straight to
+         invisible in a single frame while main and the footer fade out around
+         it — a bright flicker of the frosted bar on every navigation. */
       @keyframes sink {
+        from {
+          opacity: 1;
+          transform: none;
+        }
         to {
           opacity: 0;
           transform: translateY(10px);
@@ -721,33 +712,6 @@ const {
       .sep {
         margin: 0 0.65rem;
         opacity: 0.45;
-      }
-      .footer-nav {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: clamp(1.5rem, 6vw, 3rem);
-        margin-bottom: clamp(1.4rem, 4vw, 2rem);
-        padding-bottom: clamp(1.4rem, 4vw, 2rem);
-        border-bottom: 1px solid var(--hair);
-      }
-      .site-footer .footer-nav a {
-        font-size: clamp(1.2rem, 3.6vw, 1.5rem);
-        letter-spacing: 0.02em;
-        color: var(--ink);
-        padding-bottom: 0.2rem;
-        border-bottom: 1px solid var(--hair-strong);
-        transition: border-color 0.2s ease;
-      }
-      .site-footer .footer-nav a:hover {
-        border-bottom-color: var(--ink);
-      }
-      .footer-nav .arrow {
-        display: inline-block;
-        transition: transform 0.2s ease;
-      }
-      .site-footer .footer-nav a:hover .arrow {
-        transform: translateX(4px);
       }
 
       /* ---- Prose (rendered Markdown, shared by posts + projects) -------- */

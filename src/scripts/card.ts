@@ -41,10 +41,11 @@ export const DEFAULT_PARAMS: CardParams = {
  */
 export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = { ...DEFAULT_PARAMS }) {
   // ---- Renderer ----------------------------------------------------------
-  const dpr = Math.min(
-    window.devicePixelRatio,
-    window.matchMedia('(pointer: coarse)').matches ? 1.5 : 2,
-  );
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  // Phones render the card small (it has to fit a narrow frame), so its printed
+  // text lands on few pixels — the one place resolution actually shows. The
+  // scene is light enough (~85k tris, cheap fragments) to afford full 2x there.
+  const dpr = Math.min(window.devicePixelRatio, 2);
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
@@ -52,15 +53,21 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     powerPreference: 'high-performance',
   });
   renderer.setPixelRatio(dpr);
-  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // Size from the canvas's own box rather than window.innerWidth/Height: the
+  // element is laid out at 100% of a fixed, inset-0 parent, which tracks the
+  // mobile viewport as the URL bar shows and hides and excludes the desktop
+  // scrollbar. innerHeight disagrees with both, which stretched the render.
+  const viewportW = () => canvas.clientWidth || window.innerWidth;
+  const viewportH = () => canvas.clientHeight || window.innerHeight;
+  renderer.setSize(viewportW(), viewportH(), false);
 
   // Paint the page gradient before blocking on scene construction.
   await yieldFrame();
 
   // ---- Scene & camera ----------------------------------------------------
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(0, 0, params.camDist);
+  const camera = new THREE.PerspectiveCamera(35, viewportW() / viewportH(), 0.1, 100);
   camera.lookAt(0, 0, 0);
 
   // ---- Lighting ----------------------------------------------------------
@@ -105,6 +112,23 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
   const W = 3.5;          // business-card ratio 3.5 : 2
   const H = 2.0;
   const ASPECT = W / H;
+
+  // ---- Framing -----------------------------------------------------------
+  // The camera has a fixed *vertical* FOV, so a narrow viewport (a phone held
+  // upright) sees a much narrower slice of the world at a given distance — at
+  // params.camDist the card only fits when the viewport is wider than ~0.83:1,
+  // and ran off both edges on every phone. So treat params.camDist as the
+  // tuned distance for a roomy screen and pull back whenever the card wouldn't
+  // otherwise fit, framing it with a constant margin instead of cropping it.
+  const FIT_MARGIN = 1.12; // ~11% of the shortest fitting axis left as air
+  const viewDistance = () => {
+    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const fitH = ((H / 2) * FIT_MARGIN) / t;                  // fit the height
+    const fitW = ((W / 2) * FIT_MARGIN) / (t * camera.aspect); // fit the width
+    return Math.max(params.camDist, fitH, fitW);
+  };
+  let dist = viewDistance();
+  camera.position.set(0, 0, dist);
 
   // The front panel is finely tessellated so the displacement map moves real
   // geometry (genuine 3D relief). The body (edges + back) is a separate flat
@@ -609,7 +633,11 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
   // texture build below is heavy and synchronous, and we don't want that cost
   // to eat into (or skip) the reveal. Set lazily in the loop.
   let introStart = 0;
-  const introFromZ = params.camDist + 1.0;
+  // Dolly distances are ratios of the framing distance, not fixed offsets, so
+  // the reveal reads as the same move whatever distance the viewport demands
+  // (a flat +1.0 is a shrug on a phone, where the camera sits twice as far out).
+  const INTRO_Z_FACTOR = 1.15; // matches the old 6.7 → 7.7 on a wide screen
+  const introFromZ = () => dist * INTRO_Z_FACTOR;
   const introFromQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.16, -0.52, 0));
   const introToQuat = new THREE.Quaternion(); // identity → face-on at rest
   let intro = true;
@@ -618,7 +646,7 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     if (!intro) return;
     intro = false;
     canvas.style.opacity = '1';
-    camera.position.z = params.camDist;
+    camera.position.z = dist;
   };
 
   // ---- Exit: the entrance, run in reverse ---------------------------------
@@ -632,7 +660,8 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
   let exitDur = 720;
   let exitResolve: (() => void) | null = null;
   const exitFromQuat = new THREE.Quaternion();
-  const exitToZ = params.camDist + 2.2; // recede further than the intro arrives
+  const EXIT_Z_FACTOR = 1.33;           // recede further than the intro arrives
+  const exitToZ = () => dist * EXIT_Z_FACTOR;
   const easeInCubic = (t: number) => t * t * t;
   function playOutro(): Promise<void> {
     if (exiting) return Promise.resolve();
@@ -647,7 +676,7 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
   }
 
   card.quaternion.copy(introFromQuat);
-  camera.position.z = introFromZ;
+  camera.position.z = introFromZ();
 
   const clamp = (v: number) => Math.max(-params.maxVel, Math.min(params.maxVel, v));
 
@@ -665,8 +694,12 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     const hit = raycaster.intersectObject(hitPlane, false)[0];
     if (!hit || !hit.uv) return null;
     const { x, y } = hit.uv;
+    // A fingertip is far blunter than a cursor, and on a phone these lines are
+    // only a handful of pixels tall — grow the bands vertically for touch. The
+    // rows sit far apart, so this can't make one line steal another's taps.
+    const pad = coarse ? 0.035 : 0;
     for (const b of text.boxes) {
-      if (b.url && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1) return b.url;
+      if (b.url && x >= b.x0 && x <= b.x1 && y >= b.y0 - pad && y <= b.y1 + pad) return b.url;
     }
     return null;
   }
@@ -682,11 +715,20 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
   }
 
   // ---- Resize ------------------------------------------------------------
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+  // Observing the canvas rather than listening for window 'resize' catches the
+  // cases that matter on a phone: rotation, and the URL bar sliding away (which
+  // resizes the box without always firing a useful window event).
+  const onResize = () => {
+    const w = viewportW();
+    const h = viewportH();
+    if (w === 0 || h === 0) return; // hidden tab / mid-rotation
+    camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+    renderer.setSize(w, h, false); // CSS owns the element's size
+    dist = viewDistance();
+    if (!intro && !exiting) camera.position.z = dist;
+  };
+  new ResizeObserver(onResize).observe(canvas);
 
   // Warm up shaders before the reveal; don't block the loop if this fails.
   try {
@@ -762,7 +804,7 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     if (exiting) {
       const t = Math.min(1, (performance.now() - exitStart) / exitDur);
       const e = easeInCubic(t);
-      camera.position.z = params.camDist + (exitToZ - params.camDist) * e;
+      camera.position.z = dist + (exitToZ() - dist) * e;
       card.quaternion.slerpQuaternions(exitFromQuat, introFromQuat, e);
       // Fade a touch ahead of the recession so there's a clean beat of pure
       // grey before the page swaps.
@@ -782,7 +824,8 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
       if (introStart === 0) introStart = performance.now();
       const t = Math.min(1, (performance.now() - introStart) / INTRO_MS);
       const e = easeOutQuint(t);
-      camera.position.z = introFromZ + (params.camDist - introFromZ) * e;
+      const from = introFromZ();
+      camera.position.z = from + (dist - from) * e;
       card.quaternion.slerpQuaternions(introFromQuat, introToQuat, e);
       canvas.style.opacity = String(Math.min(1, e * 1.2));
       lastActivity = performance.now(); // hold off idle drift until settled
@@ -793,7 +836,8 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     }
 
     // pick up any live param edits (from /admin)
-    if (camera.position.z !== params.camDist) camera.position.z = params.camDist;
+    dist = viewDistance(); // camDist is a floor; the viewport can demand more
+    if (camera.position.z !== dist) camera.position.z = dist;
     if (frontMat.roughness !== params.roughness) {
       // bone panels only — the gilt edge keeps its own brushed roughness
       frontMat.roughness = params.roughness;
