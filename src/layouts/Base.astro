@@ -1,8 +1,9 @@
 ---
 // Base.astro — the shared site chrome for every page except the canvas landing.
-// It carries the gallery-grey vitrine background, the grain overlay, the sticky
-// nav, the footer, and the whole typographic system (prose, list rows, headers)
-// as global styles, so pages that use it only emit semantic markup.
+// It carries the white page, the sticky nav, the footer, and the whole
+// typographic system as global styles: tall condensed display type for titles,
+// monospace for anything that's metadata, a plain sans for reading. Pages that
+// use it only emit semantic markup.
 //
 // Pass page-specific <link>/<meta> through the named "head" slot.
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
   canonical?: string;
   ogType?: 'website' | 'article';
   current?: 'blog';
+  /** Widen <main> past the reading measure (the blog index, with its card). */
+  wide?: boolean;
 }
 
 const {
@@ -19,6 +22,7 @@ const {
   canonical,
   ogType = 'website',
   current,
+  wide = false,
 } = Astro.props;
 ---
 
@@ -45,36 +49,36 @@ const {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@300;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;600&display=swap"
     />
     <slot name="head" />
   </head>
   <body>
     <header class="site-nav">
-      <a class="site-name" href="/">Bill Wang</a>
+      <a class="site-name" href="/">bill wang</a>
       <nav aria-label="Site">
+        <a href="/">card</a>
         <a
           href="/blog"
           class={current === 'blog' ? 'current' : undefined}
           aria-current={current === 'blog' ? 'page' : undefined}
-          >Blog</a
+          >blog</a
         >
+        <a href="/rss.xml">rss</a>
       </nav>
     </header>
 
-    <main>
+    <main class={wide ? 'wide' : undefined}>
       <slot />
     </main>
 
     <footer class="site-footer">
+      <p class="footer-rule" aria-hidden="true"></p>
       <p class="footer-links">
         <a href="mailto:me@billwang.dev">me@billwang.dev</a>
-        <span class="sep" aria-hidden="true">&middot;</span>
-        <a href="https://github.com/billwang7599">GitHub</a>
-        <span class="sep" aria-hidden="true">&middot;</span>
-        <a href="https://www.linkedin.com/in/bw7599">LinkedIn</a>
-        <span class="sep" aria-hidden="true">&middot;</span>
-        <a href="/rss.xml">RSS</a>
+        <a href="https://github.com/billwang7599">github</a>
+        <a href="https://www.linkedin.com/in/bw7599">linkedin</a>
+        <a href="/rss.xml">rss</a>
       </p>
     </footer>
 
@@ -86,9 +90,9 @@ const {
     </div>
 
     <script>
-      // Smooth internal navigation: fade the page down into the shared vitrine
-      // grey before leaving, so moving between the works pages — and back to the
-      // landing card — reads as one continuous move rather than a hard cut.
+      // Smooth internal navigation: fade the page out before leaving, so moving
+      // between blog pages — and back to the landing card — reads as one
+      // continuous move rather than a hard cut.
       const root = document.body;
 
       // A back/forward restore (bfcache) can bring back a page left mid-fade.
@@ -316,12 +320,18 @@ const {
 
     <style is:global>
       :root {
-        --bg: #d2d6da;
-        --ink: #15161a;
-        --ink-soft: #6d7078;
-        --hair: rgba(21, 22, 26, 0.1);
-        --hair-strong: rgba(21, 22, 26, 0.22);
-        --measure: 42rem;
+        --bg: #fcfcfc;
+        --ink: #111113;
+        --ink-soft: #5f6066;
+        --hair: rgba(17, 17, 19, 0.12);
+        --hair-strong: rgba(17, 17, 19, 0.24);
+        --accent: #e8461a;
+        --display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+        --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        --sans: 'IBM Plex Sans', system-ui, sans-serif;
+        --measure: 44rem;
+        --wide: 70rem;
+        --gutter: clamp(1.25rem, 5vw, 2.5rem);
       }
       * {
         margin: 0;
@@ -330,10 +340,8 @@ const {
       }
       html {
         scroll-behavior: smooth;
-        /* The vitrine gradient lives on <body>; the rubber-band overscroll area
-           reveals <html> behind it. Match the base grey here so a pull past the
-           top/bottom never flashes the default white, and stop the bounce itself
-           on the vertical axis. */
+        /* Match the page so a pull past the top/bottom never flashes another
+           colour, and stop the bounce itself on the vertical axis. */
         background: var(--bg);
         overscroll-behavior-y: none;
         /* No native gutter — .scrollbar below stands in for it. */
@@ -354,29 +362,22 @@ const {
         display: flex;
         flex-direction: column;
         color: var(--ink);
-        font-family: 'EB Garamond', 'Times New Roman', serif;
+        background: var(--bg);
+        font-family: var(--sans);
         -webkit-font-smoothing: antialiased;
-        /* Cool gallery grey with a soft central pool of light + a corner
-           vignette — the same vitrine the landing card sits in. */
-        background:
-          radial-gradient(120% 115% at 50% 44%, transparent 52%, rgba(34, 38, 45, 0.32) 100%),
-          radial-gradient(72% 80% at 50% 44%, #e9ebee 0%, #d3d7db 52%, #bbc0c5 100%);
       }
-      /* A whisper of film grain to dither away gradient banding on wide
-         displays and lend a photographic, under-glass feel. */
-      body::before {
-        content: '';
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        z-index: -1;
-        opacity: 0.05;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      ::selection {
+        background: var(--accent);
+        color: #fff;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
       }
 
       /* ---- Custom scrollbar ---------------------------------------------- */
-      /* Sits in the right margin, past the centred measure, so it never crosses
-         text. Idle-hidden; the script fades it in while the page is moving. */
+      /* Sits in the right margin, past the content, so it never crosses text.
+         Idle-hidden; the script fades it in while the page is moving. */
       .scrollbar {
         position: fixed;
         top: 0;
@@ -398,7 +399,7 @@ const {
         right: 4px;
         width: 3px;
         border-radius: 999px;
-        background: rgba(21, 22, 26, 0.3);
+        background: rgba(17, 17, 19, 0.3);
         cursor: grab;
         transition:
           width 0.18s ease,
@@ -407,7 +408,7 @@ const {
       .scrollbar:hover .thumb,
       .scrollbar.is-dragging .thumb {
         width: 5px;
-        background: rgba(21, 22, 26, 0.5);
+        background: var(--accent);
       }
       .scrollbar.is-dragging .thumb {
         cursor: grabbing;
@@ -426,11 +427,11 @@ const {
       }
       .prose pre::-webkit-scrollbar-thumb {
         border-radius: 999px;
-        background: rgba(21, 22, 26, 0.22);
+        background: rgba(255, 255, 255, 0.25);
       }
       .prose pre {
         scrollbar-width: thin;
-        scrollbar-color: rgba(21, 22, 26, 0.22) transparent;
+        scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
       }
 
       /* ---- Site chrome --------------------------------------------------- */
@@ -439,93 +440,79 @@ const {
         top: 0;
         z-index: 2;
         display: flex;
-        align-items: baseline;
+        align-items: center;
         justify-content: space-between;
-        padding: clamp(1.25rem, 4vw, 2rem) clamp(1.25rem, 5vw, 2.5rem)
-          clamp(1.7rem, 4vw, 2.4rem);
-        /* A frosted veil that's opaque enough to always read as a bar, fading to
-           nothing at its lower edge so content slips under it without a line.
-           The blur underneath gives it the vitrine-glass feel. */
-        background: linear-gradient(
-          to bottom,
-          rgba(228, 231, 234, 0.85) 0%,
-          rgba(228, 231, 234, 0.58) 55%,
-          rgba(228, 231, 234, 0) 100%
-        );
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
+        gap: 1rem;
+        width: 100%;
+        max-width: calc(var(--wide) + 2 * var(--gutter));
+        margin: 0 auto;
+        padding: 1.25rem var(--gutter);
+        background: var(--bg);
+        font-family: var(--mono);
+        font-size: 0.85rem;
       }
       .site-nav a {
+        color: var(--ink);
         text-decoration: none;
       }
-      .site-name {
-        font-size: clamp(1rem, 2.8vw, 1.15rem);
-        font-weight: 500;
-        letter-spacing: 0.02em;
-        color: var(--ink);
-      }
       .site-name:hover {
-        color: var(--ink-soft);
+        color: var(--accent);
       }
       .site-nav nav {
         display: flex;
-        gap: clamp(1.25rem, 4vw, 2rem);
+        gap: 0.4rem;
       }
-      /* Full ink, not the soft grey — these were quiet enough to read as
-         decoration. Each carries a rule that draws in on hover and stays put on
-         the current section, so the pair reads as tabs you can act on. */
+      /* Each link wears a pair of brackets: invisible until hovered, solid on
+         the page you're on — so the current section reads as [blog]. */
       .site-nav nav a {
-        position: relative;
-        font-size: 0.82rem;
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        color: var(--ink);
-        padding-bottom: 0.4rem;
-        transition: color 0.2s ease;
+        color: var(--ink-soft);
+        padding: 0.5rem 0.1rem;
+        transition: color 0.15s ease;
+      }
+      .site-nav nav a::before,
+      .site-nav nav a::after {
+        opacity: 0;
+        transition: opacity 0.15s ease;
+      }
+      .site-nav nav a::before {
+        content: '[';
       }
       .site-nav nav a::after {
-        content: '';
-        position: absolute;
-        left: 0;
-        /* Uppercase tracking leaves a trailing gap after the last glyph; pull
-           the rule back by the same amount so it sits under the word. */
-        right: 0.22em;
-        bottom: 0;
-        height: 1px;
-        background: currentColor;
-        opacity: 0.55;
-        transform: scaleX(0);
-        transform-origin: left center;
-        transition:
-          transform 0.3s cubic-bezier(0.2, 0.65, 0.2, 1),
-          opacity 0.2s ease;
+        content: ']';
       }
+      .site-nav nav a:hover {
+        color: var(--ink);
+      }
+      .site-nav nav a:hover::before,
       .site-nav nav a:hover::after {
-        transform: scaleX(1);
+        opacity: 1;
+        color: var(--accent);
       }
+      .site-nav nav a.current {
+        color: var(--ink);
+      }
+      .site-nav nav a.current::before,
       .site-nav nav a.current::after {
-        transform: scaleX(1);
         opacity: 1;
       }
 
       /* ---- Page wrapper -------------------------------------------------- */
       main {
         flex: 1;
-        width: min(var(--measure), 100%);
+        width: 100%;
+        max-width: calc(var(--measure) + 2 * var(--gutter));
         margin: 0 auto;
-        padding: clamp(1rem, 4vw, 2rem) clamp(1.25rem, 5vw, 2.5rem)
-          clamp(4rem, 10vw, 6rem);
+        padding: clamp(1rem, 4vw, 2rem) var(--gutter) clamp(4rem, 10vw, 6rem);
+      }
+      main.wide {
+        max-width: calc(var(--wide) + 2 * var(--gutter));
       }
 
-      /* Arrival: the page rises out of the same vitrine grey the landing card
-         receded into, so navigating in from the card reads as one continuous
-         move rather than a cut. Blocks stagger in; list rows cascade via --i. */
+      /* Arrival: blocks rise in, staggered; list rows cascade via --i. */
       @media (prefers-reduced-motion: no-preference) {
-        /* The bar settles down from above, framing the page just before the
-           content rises into it. */
         .site-nav {
           opacity: 0;
-          animation: nav-in 0.7s cubic-bezier(0.2, 0.65, 0.2, 1) 0.02s both;
+          animation: nav-in 0.6s cubic-bezier(0.2, 0.65, 0.2, 1) 0.02s both;
         }
         .page-header,
         .filters,
@@ -533,7 +520,7 @@ const {
         .prose,
         .entries > li {
           opacity: 0;
-          animation: rise 0.7s cubic-bezier(0.2, 0.65, 0.2, 1) both;
+          animation: rise 0.6s cubic-bezier(0.2, 0.65, 0.2, 1) both;
         }
         .page-header,
         .post-header {
@@ -546,12 +533,11 @@ const {
           animation-delay: 0.2s;
         }
         .entries > li {
-          animation-delay: calc(0.22s + var(--i, 0) * 0.06s);
+          animation-delay: calc(0.22s + var(--i, 0) * 0.05s);
         }
 
-        /* Leaving: the whole page sinks into the shared grey before navigating,
-           so a click to / hands off to the card's rise-from-grey intro without a
-           cut. Set by the inline navigation script below. */
+        /* Leaving: the page sinks away before navigating. Set by the inline
+           navigation script above. */
         body.is-leaving .site-nav,
         body.is-leaving main,
         body.is-leaving .site-footer {
@@ -586,7 +572,7 @@ const {
          `opacity: 0` (nav-in only holds it at 1 through its fill). Swapping in
          this animation cancels nav-in, so the bar would snap straight to
          invisible in a single frame while main and the footer fade out around
-         it — a bright flicker of the frosted bar on every navigation. */
+         it. */
       @keyframes sink {
         from {
           opacity: 1;
@@ -598,181 +584,230 @@ const {
         }
       }
 
-      /* ---- Page + section headers --------------------------------------- */
-      .page-header {
-        margin-bottom: clamp(2.5rem, 7vw, 4rem);
+      /* ---- Shared type --------------------------------------------------- */
+      .mono {
+        font-family: var(--mono);
       }
-      .page-header h1 {
-        font-weight: 500;
-        font-size: clamp(2.8rem, 10vw, 4.5rem);
-        letter-spacing: 0.04em;
-        line-height: 1;
-      }
-      .lede {
-        margin-top: 0.85rem;
-        font-size: clamp(1.05rem, 3vw, 1.25rem);
-        font-style: italic;
-        letter-spacing: 0.015em;
-        color: var(--ink-soft);
-      }
-      .section-label {
-        font-weight: 600;
-        font-size: 0.72rem;
-        letter-spacing: 0.34em;
+      .display {
+        font-family: var(--display);
         text-transform: uppercase;
-        color: var(--ink-soft);
-        margin-bottom: 1.5rem;
-      }
-
-      /* ---- Editorial entry list (posts) ---------------------- */
-      .entries {
-        list-style: none;
-        display: flex;
-        flex-direction: column;
-        gap: clamp(1.6rem, 4vw, 2.4rem);
-      }
-      .entries .row {
-        display: flex;
-        align-items: baseline;
-        gap: 0.5rem;
-      }
-      .entries .title {
-        font-size: clamp(1.25rem, 3.5vw, 1.5rem);
-        font-weight: 500;
-        text-decoration: none;
-        color: var(--ink);
-      }
-      a.title {
-        border-bottom: 1px solid var(--hair-strong);
-        transition: border-color 0.2s ease;
-      }
-      a.title:hover {
-        border-bottom-color: var(--ink);
-      }
-      .dots {
-        flex: 1;
-        border-bottom: 1px dotted rgba(21, 22, 26, 0.18);
-        transform: translateY(-0.2em);
-      }
-      .meta {
-        font-size: 0.92rem;
-        letter-spacing: 0.06em;
-        color: var(--ink-soft);
-        white-space: nowrap;
-      }
-      .blurb {
-        margin-top: 0.45rem;
-        font-size: clamp(1rem, 2.6vw, 1.12rem);
-        line-height: 1.6;
-        color: var(--ink-soft);
-        max-width: 36rem;
       }
       .empty {
-        font-style: italic;
+        font-family: var(--mono);
+        font-size: 0.9rem;
         color: var(--ink-soft);
         padding: 0.5rem 0;
       }
 
-      /* ---- Pill tags (shared by filters + post header) ------------------ */
-      .pill {
-        font-size: 0.7rem;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
+      /* ---- Entry list (posts) ------------------------------------------- */
+      .entries {
+        list-style: none;
+        border-bottom: 1px solid var(--hair);
+      }
+      .entries > li {
+        border-top: 1px solid var(--hair);
+      }
+      .entries .row {
+        display: grid;
+        grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+        gap: 0 1.25rem;
+        align-items: baseline;
+        padding: 1.4rem 0;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .entries .num {
+        font-family: var(--mono);
+        font-size: 0.8rem;
         color: var(--ink-soft);
-        border: 1px solid var(--hair-strong);
-        border-radius: 999px;
-        padding: 0.28rem 0.7rem;
+        transition: color 0.15s ease;
+      }
+      .entries .title {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: clamp(1.9rem, 4.6vw, 2.6rem);
+        line-height: 1;
+        text-transform: uppercase;
+        overflow-wrap: anywhere;
+      }
+      /* An ASCII arrow that draws itself out after the title on hover. The
+         flex-end + overflow keeps its tip visible while the width grows. */
+      .entries .trail {
+        display: inline-flex;
+        justify-content: flex-end;
+        overflow: hidden;
+        width: 0;
+        vertical-align: 0.3em;
+        font-family: var(--mono);
+        font-size: 1rem;
+        line-height: 1;
+        color: var(--accent);
+        transition: width 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      .entries .trail span {
+        flex: 0 0 auto;
+        white-space: pre;
+      }
+      .entries .row:hover .trail,
+      .entries .row:focus-visible .trail {
+        width: 8.5rem;
+      }
+      .entries .row:hover .num,
+      .entries .row:focus-visible .num {
+        color: var(--accent);
+      }
+      .entries .blurb {
+        display: block;
+        margin-top: 0.6rem;
+        font-family: var(--mono);
+        font-size: 0.85rem;
+        line-height: 1.6;
+        color: var(--ink-soft);
+      }
+      .entries .meta {
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        line-height: 1.6;
+        color: var(--ink-soft);
+        text-align: right;
         white-space: nowrap;
+      }
+      @media (max-width: 640px) {
+        .entries .row {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .entries .num {
+          display: none;
+        }
+        .entries .meta {
+          order: -1;
+          text-align: left;
+          margin-bottom: 0.4rem;
+        }
+      }
+
+      /* ---- Tags (post header) ------------------------------------------- */
+      .tag {
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        color: var(--ink-soft);
+      }
+      .tag::before {
+        content: '#';
+        color: var(--accent);
       }
 
       /* ---- Footer -------------------------------------------------------- */
       .site-footer {
-        padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1.25rem, 5vw, 2.5rem);
-        text-align: center;
-        font-size: 0.85rem;
-        letter-spacing: 0.04em;
+        width: 100%;
+        max-width: calc(var(--wide) + 2 * var(--gutter));
+        margin: 0 auto;
+        padding: 0 var(--gutter) clamp(1.5rem, 4vw, 2.5rem);
+        font-family: var(--mono);
+        font-size: 0.8rem;
         color: var(--ink-soft);
+      }
+      /* An ASCII rule, cut to whatever width the footer has. */
+      .footer-rule {
+        overflow: hidden;
+        white-space: nowrap;
+        margin-bottom: 1rem;
+      }
+      .footer-rule::before {
+        content: '·─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────·';
+      }
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.5rem;
       }
       .site-footer a {
         color: var(--ink-soft);
         text-decoration: none;
-        transition: color 0.2s ease;
+        transition: color 0.15s ease;
       }
       .site-footer a:hover {
-        color: var(--ink);
-      }
-      .sep {
-        margin: 0 0.65rem;
-        opacity: 0.45;
+        color: var(--accent);
       }
 
       /* ---- Prose (rendered Markdown, used by posts) -------- */
       .prose {
-        font-size: clamp(1.08rem, 2.7vw, 1.22rem);
-        line-height: 1.72;
+        font-size: clamp(1.02rem, 2.4vw, 1.1rem);
+        line-height: 1.75;
         color: var(--ink);
       }
       .prose > * + * {
-        margin-top: 1.3rem;
+        margin-top: 1.25rem;
       }
       .prose h2,
       .prose h3 {
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        line-height: 1.2;
-        margin-top: 2.6rem;
+        font-family: var(--display);
+        font-weight: 500;
+        text-transform: uppercase;
+        line-height: 1;
+        margin-top: 2.8rem;
       }
       .prose h2 {
-        font-size: clamp(1.5rem, 4vw, 1.9rem);
+        font-size: clamp(1.9rem, 5vw, 2.4rem);
       }
       .prose h3 {
-        font-size: clamp(1.25rem, 3.2vw, 1.5rem);
+        font-size: clamp(1.5rem, 4vw, 1.8rem);
       }
       .prose a {
         color: var(--ink);
-        text-decoration: none;
-        border-bottom: 1px solid rgba(21, 22, 26, 0.3);
-        transition: border-color 0.2s ease;
+        text-decoration: underline;
+        text-decoration-color: var(--accent);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+        transition: color 0.15s ease;
       }
       .prose a:hover {
-        border-bottom-color: var(--ink);
+        color: var(--accent);
       }
       .prose ul,
       .prose ol {
         padding-left: 1.4rem;
       }
       .prose li + li {
-        margin-top: 0.5rem;
+        margin-top: 0.4rem;
+      }
+      .prose ul li::marker {
+        content: '- ';
+        font-family: var(--mono);
+        color: var(--accent);
       }
       .prose blockquote {
-        border-left: 2px solid var(--hair-strong);
+        border-left: 2px solid var(--accent);
         padding-left: 1.2rem;
-        font-style: italic;
         color: var(--ink-soft);
       }
       .prose img {
         max-width: 100%;
         height: auto;
-        border-radius: 6px;
+        border-radius: 4px;
       }
       .prose hr {
         border: 0;
-        border-top: 1px solid rgba(21, 22, 26, 0.12);
+        text-align: center;
+        font-family: var(--mono);
+        color: var(--ink-soft);
+      }
+      .prose hr::before {
+        content: '* * *';
       }
       .prose code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-family: var(--mono);
         font-size: 0.86em;
-        background: rgba(21, 22, 26, 0.06);
+        background: rgba(17, 17, 19, 0.06);
         padding: 0.12em 0.35em;
-        border-radius: 4px;
+        border-radius: 3px;
       }
       .prose pre {
-        font-size: clamp(0.85rem, 2.2vw, 0.95rem);
-        line-height: 1.6;
+        font-size: clamp(0.8rem, 2.1vw, 0.88rem);
+        line-height: 1.65;
         padding: 1.1rem 1.25rem;
-        border-radius: 8px;
+        border-radius: 4px;
         overflow-x: auto;
-        border: 1px solid var(--hair);
       }
       .prose pre code {
         background: none;

@@ -149,8 +149,9 @@ vite.config.ts.timestamp-*
 .wrangler/
 .dev.vars*
 
-# Claude Code (local, machine-specific settings)
-.claude/settings.local.json
+# Claude Code (local, never committed)
+.claude/
+CLAUDE.md
 
 # macOS
 .DS_Store

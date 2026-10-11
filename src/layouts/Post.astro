@@ -1,7 +1,7 @@
 ---
 // Single blog-post layout. Sits on Base for all shared chrome and prose styling;
-// adds the post header (kicker, title, dateline, reading time, tags) and the
-// back link. The rendered Markdown body arrives through <slot />.
+// adds the post header (title, dateline, reading time, tags) and the back
+// links. The rendered Markdown body arrives through <slot />.
 import Base from './Base.astro';
 
 interface Props {
@@ -24,8 +24,9 @@ const {
   minutes,
 } = Astro.props;
 
-const fmt = (d: Date) =>
-  d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+// Dates parse as UTC midnight; format in UTC so the build timezone can't
+// shift them a day.
+const fmt = (d: Date) => d.toISOString().slice(0, 10).replaceAll('-', '.');
 
 const canonical = `https://billwang.dev/blog/${slug}`;
 ---
@@ -46,25 +47,18 @@ const canonical = `https://billwang.dev/blog/${slug}`;
 
   <article>
     <header class="post-header">
-      <p class="kicker">
-        <a href="/blog">
-          <span class="arrow back" aria-hidden="true">
-            &larr;
-          </span>
-          <span class="name">Blog</span>
-        </a>
-      </p>
-      <h1>{title}</h1>
-      <p class="dateline">
+      <p class="kicker mono"><a href="/blog"><span class="arrow" aria-hidden="true">&lt;──</span> blog</a></p>
+      <h1 class="display">{title}</h1>
+      <p class="dateline mono">
         <time datetime={pubDate.toISOString()}>{fmt(pubDate)}</time>
-        {updatedDate && <span class="updated"> · updated {fmt(updatedDate)}</span>}
-        <span class="updated"> · {minutes} min read</span>
+        {updatedDate && <span> · updated {fmt(updatedDate)}</span>}
+        <span> · {minutes} min read</span>
       </p>
       {
         tags.length > 0 && (
           <ul class="tags" aria-label="Tags">
             {tags.map((t) => (
-              <li class="pill">{t}</li>
+              <li class="tag">{t}</li>
             ))}
           </ul>
         )
@@ -75,7 +69,7 @@ const canonical = `https://billwang.dev/blog/${slug}`;
       <slot />
     </div>
 
-    <p class="all-link"><a href="/blog">← All posts</a></p>
+    <p class="all-link mono"><a href="/blog"><span class="arrow" aria-hidden="true">&lt;──</span> all posts</a></p>
   </article>
 
   <style>
@@ -83,85 +77,51 @@ const canonical = `https://billwang.dev/blog/${slug}`;
       margin-bottom: clamp(2.5rem, 7vw, 3.5rem);
     }
     .kicker {
-      font-size: 0.72rem;
-      letter-spacing: 0.34em;
-      text-transform: uppercase;
-      color: var(--ink-soft);
-      margin-bottom: 1.25rem;
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
     }
-    .kicker a {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.6em;
+    .kicker a,
+    .all-link a {
       color: var(--ink-soft);
       text-decoration: none;
+      transition: color 0.15s ease;
     }
-    .kicker .name {
-      position: relative;
-      color: var(--ink);
+    .kicker a:hover,
+    .all-link a:hover {
+      color: var(--accent);
     }
-    .kicker .name::after {
-      content: '';
-      position: absolute;
-      left: 0;
-      /* Uppercase tracking leaves a gap after the last glyph — pull the rule
-         back by the same amount so it ends with the word. */
-      right: 0.34em;
-      bottom: -0.35em;
-      height: 1px;
-      background: currentColor;
-      opacity: 0.4;
-      transition: opacity 0.2s ease;
-    }
-    .kicker a:hover .name::after {
-      opacity: 1;
-    }
-    .kicker .arrow {
+    .arrow {
       display: inline-block;
       transition: transform 0.2s ease;
     }
-    .kicker a:hover .arrow {
-      transform: translateX(3px);
-    }
-    .kicker a:hover .arrow.back {
-      transform: translateX(-3px);
+    a:hover .arrow {
+      transform: translateX(-4px);
     }
     .post-header h1 {
       font-weight: 500;
-      font-size: clamp(2.2rem, 7vw, 3.4rem);
-      letter-spacing: 0.01em;
-      line-height: 1.08;
+      font-size: clamp(2.8rem, 9vw, 4.6rem);
+      line-height: 0.92;
+      overflow-wrap: anywhere;
     }
     .dateline {
-      margin-top: 1rem;
-      font-style: italic;
-      font-size: clamp(1rem, 2.6vw, 1.1rem);
+      margin-top: 1.1rem;
+      font-size: 0.8rem;
       color: var(--ink-soft);
     }
     .tags {
       list-style: none;
       display: flex;
       flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-top: 1.1rem;
+      gap: 0.25rem 1rem;
+      margin-top: 0.6rem;
     }
 
-    /* Carries the closing rule the prev/next nav used to draw, so the body
-       still ends on a line rather than trailing off. */
+    /* Closes the body on a rule rather than letting it trail off. */
     .all-link {
       margin-top: clamp(3rem, 8vw, 4.5rem);
       padding-top: 1.5rem;
       border-top: 1px solid var(--hair);
-    }
-    .all-link a {
-      color: var(--ink-soft);
-      text-decoration: none;
-      font-size: 0.92rem;
-      letter-spacing: 0.04em;
-      transition: color 0.2s ease;
-    }
-    .all-link a:hover {
-      color: var(--ink);
+      font-size: 0.85rem;
     }
   </style>
 </Base>
