@@ -2,22 +2,24 @@
 import { defineConfig } from 'astro/config';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { devBlogPlugin, stripDevBlogIntegration } from './src/dev-blog/plugin.ts';
+import { devBlogPlugin } from './src/dev-blog/plugin.ts';
 
 // Static output. Astro pre-renders every page at build time into ./dist,
 // which Cloudflare Workers serves directly as static assets (no adapter needed).
 export default defineConfig({
   site: 'https://billwang.dev',
   output: 'static',
-  integrations: [stripDevBlogIntegration()],
   vite: {
     plugins: [devBlogPlugin()],
   },
-  // The old combined /works section split into /projects and /writing. Keep the
-  // old URLs alive: posts used to live at /works/[slug] and are now writing.
+  // Old URLs stay alive: /works and /writing were earlier homes of the blog, and
+  // /projects was folded into it.
   redirects: {
-    '/works': '/projects',
-    '/works/[slug]': '/writing/[slug]',
+    '/works': '/blog',
+    '/works/[slug]': '/blog/[slug]',
+    '/writing': '/blog',
+    '/writing/[slug]': '/blog/[slug]',
+    '/projects': '/blog',
   },
   markdown: {
     // remark-math parses $…$ / $$…$$; rehype-katex typesets it to HTML at build

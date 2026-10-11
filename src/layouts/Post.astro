@@ -3,6 +3,7 @@
 // adds the post header (kicker, title, dateline, reading time, tags) and the
 // back link. The rendered Markdown body arrives through <slot />.
 import Base from './Base.astro';
+import { blogPath, canonicalPost } from '../lib/urls';
 
 interface Props {
   title: string;
@@ -12,7 +13,6 @@ interface Props {
   tags?: string[];
   slug: string;
   minutes: number;
-  project?: { slug: string; title: string };
 }
 
 const {
@@ -23,13 +23,12 @@ const {
   tags = [],
   slug,
   minutes,
-  project,
 } = Astro.props;
 
 const fmt = (d: Date) =>
   d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-const canonical = `https://billwang.dev/writing/${slug}`;
+const canonical = canonicalPost(slug);
 ---
 
 <Base
@@ -37,7 +36,7 @@ const canonical = `https://billwang.dev/writing/${slug}`;
   description={description}
   canonical={canonical}
   ogType="article"
-  current="writing"
+  current="blog"
 >
   <!-- Typesets the build-time KaTeX output in posts that use math. -->
   <link
@@ -49,24 +48,12 @@ const canonical = `https://billwang.dev/writing/${slug}`;
   <article>
     <header class="post-header">
       <p class="kicker">
-        {
-          project ? (
-            <a href={`/projects/${project.slug}`}>
-              <span class="lead">Part of</span>
-              <span class="name">{project.title}</span>
-              <span class="arrow" aria-hidden="true">
-                &rarr;
-              </span>
-            </a>
-          ) : (
-            <a href="/writing">
-              <span class="arrow back" aria-hidden="true">
-                &larr;
-              </span>
-              <span class="name">Writing</span>
-            </a>
-          )
-        }
+        <a href={blogPath()}>
+          <span class="arrow back" aria-hidden="true">
+            &larr;
+          </span>
+          <span class="name">Blog</span>
+        </a>
       </p>
       <h1>{title}</h1>
       <p class="dateline">
@@ -89,7 +76,7 @@ const canonical = `https://billwang.dev/writing/${slug}`;
       <slot />
     </div>
 
-    <p class="all-link"><a href="/writing">← All writing</a></p>
+    <p class="all-link"><a href={blogPath()}>← All posts</a></p>
   </article>
 
   <style>
@@ -103,19 +90,12 @@ const canonical = `https://billwang.dev/writing/${slug}`;
       color: var(--ink-soft);
       margin-bottom: 1.25rem;
     }
-    /* This was styled as a label and read as one — nothing said it was a way
-       through to the project. Now: a "Part of" lead-in that names what the
-       link does, the title in full ink with a rule under it, and an arrow that
-       nudges on hover. */
     .kicker a {
       display: inline-flex;
       align-items: center;
       gap: 0.6em;
       color: var(--ink-soft);
       text-decoration: none;
-    }
-    .kicker .lead {
-      opacity: 0.75;
     }
     .kicker .name {
       position: relative;

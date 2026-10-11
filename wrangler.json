@@ -1,7 +1,21 @@
 {
   "name": "billwang-site",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-06-17",
   "assets": {
-    "directory": "./dist"
-  }
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "EDITOR", "class_name": "EditorDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EditorDO"] }],
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": "",
+    "GITHUB_REPO": "billwang7599/billwang-site",
+    "GITHUB_BRANCH": "main"
+  },
+  "observability": { "enabled": true }
 }

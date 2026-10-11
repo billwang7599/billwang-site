@@ -3,7 +3,6 @@ title: "GoLang Multiplayer Pong | Log: #2"
 description: "Short update pre-midterms. Issue with network architecture."
 pubDate: 2025-10-26
 tags: ["devlog"]
-project: golang-pong
 ---
 
 ## Short Update

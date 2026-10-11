@@ -24,10 +24,6 @@ export const prerender = true;
         <a class="site-name" href="/" id="home-link">Bill Wang</a>
         <span class="badge">editor</span>
       </div>
-      <nav class="tabs" aria-label="Content type">
-        <button type="button" class="tab is-active" data-mode="posts">Writing</button>
-        <button type="button" class="tab" data-mode="projects">Projects</button>
-      </nav>
       <div class="actions">
         <span id="status" class="status" role="status" aria-live="polite"></span>
         <button id="save-btn" type="button" class="primary">
@@ -46,7 +42,7 @@ export const prerender = true;
       <aside>
         <div class="sidebar-head">
           <p class="sidebar-label">
-            <span id="sidebar-label">Posts</span>
+            <span>Posts</span>
             <span id="item-count" class="count"></span>
           </p>
           <button id="new-btn" type="button" class="ghost tiny">New</button>
@@ -75,7 +71,7 @@ export const prerender = true;
             </span>
           </div>
 
-          <!-- Writing fields -->
+          <!-- Post fields -->
           <div id="post-fields" class="fields">
             <section class="panel">
               <h2 class="panel-title">Details</h2>
@@ -98,12 +94,6 @@ export const prerender = true;
                   <span>Updated</span>
                   <input id="post-updatedDate" type="date" />
                 </label>
-                <label class="grow">
-                  <span>Project</span>
-                  <select id="post-project">
-                    <option value="">— none —</option>
-                  </select>
-                </label>
               </div>
               <div class="field-row">
                 <label class="grow">
@@ -113,57 +103,6 @@ export const prerender = true;
                 <label class="toggle">
                   <input id="post-draft" type="checkbox" />
                   <span>Draft</span>
-                </label>
-              </div>
-            </section>
-          </div>
-
-          <!-- Project fields -->
-          <div id="project-fields" class="fields" hidden>
-            <section class="panel">
-              <h2 class="panel-title">Details</h2>
-              <div class="field-stack">
-                <label>
-                  <span>Title</span>
-                  <input id="project-title" type="text" />
-                </label>
-                <label>
-                  <span>Description</span>
-                  <input id="project-description" type="text" />
-                </label>
-              </div>
-              <div class="field-row">
-                <label>
-                  <span>Year</span>
-                  <input id="project-year" type="text" inputmode="numeric" placeholder="2026" />
-                </label>
-                <label>
-                  <span>Order</span>
-                  <input id="project-order" type="number" min="0" step="1" />
-                </label>
-                <label class="toggle">
-                  <input id="project-featured" type="checkbox" />
-                  <span>Featured</span>
-                </label>
-                <label class="toggle">
-                  <input id="project-draft" type="checkbox" />
-                  <span>Draft</span>
-                </label>
-              </div>
-              <div class="field-row">
-                <label class="grow">
-                  <span>Tech</span>
-                  <input id="project-tech" type="text" placeholder="Go, Three.js, Astro" />
-                </label>
-              </div>
-              <div class="field-row">
-                <label class="grow">
-                  <span>Link</span>
-                  <input id="project-link" type="text" placeholder="/ or https://…" />
-                </label>
-                <label class="grow">
-                  <span>Repo</span>
-                  <input id="project-repo" type="url" placeholder="https://github.com/…" />
                 </label>
               </div>
             </section>
@@ -220,7 +159,6 @@ export const prerender = true;
     <script>
       const API = '/edit/api';
       const API_FALLBACK = '/blog/api';
-      let mode = 'posts';
       let currentId = null;
       let dirty = false;
       // Serialised form state as of the last load/save. Dirty is a comparison
@@ -234,11 +172,9 @@ export const prerender = true;
         banner: document.getElementById('api-banner'),
         target: document.getElementById('editor-target'),
         list: document.getElementById('item-list'),
-        sidebarLabel: document.getElementById('sidebar-label'),
         count: document.getElementById('item-count'),
         search: document.getElementById('search'),
         postFields: document.getElementById('post-fields'),
-        projectFields: document.getElementById('project-fields'),
         body: document.getElementById('body'),
         bodyStats: document.getElementById('body-stats'),
         preview: document.getElementById('preview-link'),
@@ -246,26 +182,13 @@ export const prerender = true;
         del: document.getElementById('delete-btn'),
         newBtn: document.getElementById('new-btn'),
         homeLink: document.getElementById('home-link'),
-        tabs: document.querySelectorAll('.tab'),
         post: {
           title: document.getElementById('post-title'),
           description: document.getElementById('post-description'),
           pubDate: document.getElementById('post-pubDate'),
           updatedDate: document.getElementById('post-updatedDate'),
           tags: document.getElementById('post-tags'),
-          project: document.getElementById('post-project'),
           draft: document.getElementById('post-draft'),
-        },
-        project: {
-          title: document.getElementById('project-title'),
-          description: document.getElementById('project-description'),
-          year: document.getElementById('project-year'),
-          order: document.getElementById('project-order'),
-          featured: document.getElementById('project-featured'),
-          tech: document.getElementById('project-tech'),
-          link: document.getElementById('project-link'),
-          repo: document.getElementById('project-repo'),
-          draft: document.getElementById('project-draft'),
         },
       };
 
@@ -331,21 +254,21 @@ export const prerender = true;
 
       function itemLabel(id) {
         if (!id) return '';
-        const dir = mode === 'posts' ? 'src/content/blog' : 'src/content/projects';
-        return `${dir}/${id}.md`;
+        return `src/content/blog/${id}.md`;
+      }
+
+      /** The blog host serves posts at the root; the dev server keeps /blog/. */
+      function previewHref(id) {
+        return location.hostname.startsWith('blog.') ? `/${id}` : `/blog/${id}`;
       }
 
       function today() {
         return new Date().toISOString().slice(0, 10);
       }
 
-      function yearNow() {
-        return String(new Date().getFullYear());
-      }
-
       // ---- Dirty tracking -------------------------------------------------
       function snapshot() {
-        return JSON.stringify(mode === 'posts' ? postFormData() : projectFormData());
+        return JSON.stringify(postFormData());
       }
 
       function applyDirty(next) {
@@ -440,7 +363,6 @@ export const prerender = true;
               updatedDate: fm.updatedDate,
               tags: Array.isArray(fm.tags) ? fm.tags : [],
               draft: Boolean(fm.draft),
-              project: fm.project,
             },
           };
         }
@@ -457,41 +379,6 @@ export const prerender = true;
         };
       }
 
-      function normalizeProjectItem(item) {
-        const id = String(item?.id ?? '');
-        const fm = item?.frontmatter;
-        if (fm && typeof fm === 'object') {
-          return {
-            id,
-            broken: Boolean(item?.broken),
-            frontmatter: {
-              title: fm.title ?? id,
-              description: fm.description ?? '',
-              year: fm.year ?? '',
-              order: Number(fm.order) || 0,
-              featured: Boolean(fm.featured),
-              tech: Array.isArray(fm.tech) ? fm.tech : [],
-              link: fm.link,
-              repo: fm.repo,
-              draft: Boolean(fm.draft),
-            },
-          };
-        }
-        return {
-          id,
-          broken: Boolean(item?.broken),
-          frontmatter: {
-            title: item?.title ?? id,
-            description: '',
-            year: '',
-            order: 0,
-            featured: false,
-            tech: [],
-            draft: false,
-          },
-        };
-      }
-
       function normalizePostRecord(record) {
         const item = normalizePostItem(record);
         return {
@@ -502,34 +389,6 @@ export const prerender = true;
         };
       }
 
-      function normalizeProjectRecord(record) {
-        const item = normalizeProjectItem(record);
-        return {
-          id: item.id,
-          broken: item.broken,
-          frontmatter: item.frontmatter,
-          body: typeof record?.body === 'string' ? record.body : '',
-        };
-      }
-
-      async function refreshProjectOptions(selected = '') {
-        const raw = await api('/projects');
-        const projects = asArray(raw).map(normalizeProjectItem);
-        els.post.project.replaceChildren();
-        const none = document.createElement('option');
-        none.value = '';
-        none.textContent = '— none —';
-        els.post.project.append(none);
-        for (const p of projects) {
-          if (!p.id) continue;
-          const opt = document.createElement('option');
-          opt.value = p.id;
-          opt.textContent = p.frontmatter.title || p.id;
-          els.post.project.append(opt);
-        }
-        els.post.project.value = selected;
-      }
-
       function postFormData() {
         return {
           title: els.post.title.value.trim(),
@@ -537,23 +396,7 @@ export const prerender = true;
           pubDate: els.post.pubDate.value,
           updatedDate: els.post.updatedDate.value || undefined,
           tags: els.post.tags.value,
-          project: els.post.project.value || undefined,
           draft: els.post.draft.checked,
-          body: els.body.value,
-        };
-      }
-
-      function projectFormData() {
-        return {
-          title: els.project.title.value.trim(),
-          description: els.project.description.value.trim(),
-          year: els.project.year.value.trim() || yearNow(),
-          order: Number(els.project.order.value) || 0,
-          featured: els.project.featured.checked,
-          tech: els.project.tech.value,
-          link: els.project.link.value.trim() || undefined,
-          repo: els.project.repo.value.trim() || undefined,
-          draft: els.project.draft.checked,
           body: els.body.value,
         };
       }
@@ -570,36 +413,10 @@ export const prerender = true;
         els.post.pubDate.value = fm.pubDate ?? today();
         els.post.updatedDate.value = fm.updatedDate ?? '';
         els.post.tags.value = (fm.tags ?? []).join(', ');
-        els.post.project.value = fm.project ?? '';
         els.post.draft.checked = Boolean(fm.draft);
         els.body.value = body;
         els.preview.hidden = false;
-        els.preview.href = `/writing/${id}`;
-        els.del.disabled = false;
-        setTarget(itemLabel(id));
-        updateBodyStats();
-        markClean(broken ? 'Loaded — parse issue, review & save' : 'Loaded');
-      }
-
-      function fillProject(record) {
-        const { frontmatter: fm, body, id, broken } = normalizeProjectRecord(record);
-        if (!id) {
-          setStatus('Could not load project', 'err');
-          return;
-        }
-        currentId = id;
-        els.project.title.value = fm.title ?? '';
-        els.project.description.value = fm.description ?? '';
-        els.project.year.value = fm.year ?? yearNow();
-        els.project.order.value = String(fm.order ?? 0);
-        els.project.featured.checked = Boolean(fm.featured);
-        els.project.tech.value = (fm.tech ?? []).join(', ');
-        els.project.link.value = fm.link ?? '';
-        els.project.repo.value = fm.repo ?? '';
-        els.project.draft.checked = Boolean(fm.draft);
-        els.body.value = body;
-        els.preview.hidden = false;
-        els.preview.href = `/projects/${id}`;
+        els.preview.href = previewHref(id);
         els.del.disabled = false;
         setTarget(itemLabel(id));
         updateBodyStats();
@@ -613,7 +430,6 @@ export const prerender = true;
         els.post.pubDate.value = today();
         els.post.updatedDate.value = '';
         els.post.tags.value = '';
-        els.post.project.value = '';
         els.post.draft.checked = false;
         els.body.value = '';
         els.preview.hidden = true;
@@ -623,28 +439,8 @@ export const prerender = true;
         markClean('New post');
       }
 
-      function blankProject() {
-        currentId = null;
-        els.project.title.value = '';
-        els.project.description.value = '';
-        els.project.year.value = yearNow();
-        els.project.order.value = '0';
-        els.project.featured.checked = false;
-        els.project.tech.value = '';
-        els.project.link.value = '';
-        els.project.repo.value = '';
-        els.project.draft.checked = false;
-        els.body.value = '';
-        els.preview.hidden = true;
-        els.del.disabled = true;
-        setTarget('New project — save to create a file');
-        updateBodyStats();
-        markClean('New project');
-      }
-
       function blankForm() {
-        if (mode === 'posts') blankPost();
-        else blankProject();
+        blankPost();
         syncUrl();
       }
 
@@ -668,7 +464,7 @@ export const prerender = true;
           const empty = document.createElement('p');
           empty.className = 'empty-list';
           empty.textContent = items.length === 0
-            ? mode === 'posts' ? 'No posts yet.' : 'No projects yet.'
+            ? 'No posts yet.'
             : 'Nothing matches that.';
           els.list.append(empty);
           return;
@@ -695,24 +491,15 @@ export const prerender = true;
           meta.className = 'item-meta';
 
           const when = document.createElement('span');
-          when.textContent =
-            mode === 'posts'
-              ? fm.pubDate || 'No date'
-              : `${fm.year || '—'} · order ${fm.order ?? 0}`;
+          when.textContent = fm.pubDate || 'No date';
           meta.append(when);
 
-          // Draft and featured are invisible in the filename, so surface them
+          // Draft status is invisible in the filename, so surface them
           // here — otherwise you have to open a file to learn it isn't live.
           if (fm.draft) {
             const flag = document.createElement('span');
             flag.className = 'flag flag-draft';
             flag.textContent = 'draft';
-            meta.append(flag);
-          }
-          if (fm.featured) {
-            const flag = document.createElement('span');
-            flag.className = 'flag flag-featured';
-            flag.textContent = 'featured';
             meta.append(flag);
           }
 
@@ -723,9 +510,8 @@ export const prerender = true;
       }
 
       async function loadList(activeId = currentId) {
-        const raw = await api(mode === 'posts' ? '/posts' : '/projects');
-        const normalize = mode === 'posts' ? normalizePostItem : normalizeProjectItem;
-        items = asArray(raw).map(normalize);
+        const raw = await api('/posts');
+        items = asArray(raw).map(normalizePostItem);
         renderList(activeId);
         return items;
       }
@@ -735,11 +521,8 @@ export const prerender = true;
         if (id === currentId && !dirty) return;
         if (!(await confirmDiscard())) return;
         try {
-          const record = await api(
-            `/${mode === 'posts' ? 'posts' : 'projects'}/${encodeURIComponent(id)}`,
-          );
-          if (mode === 'posts') fillPost(record);
-          else fillProject(record);
+          const record = await api(`/posts/${encodeURIComponent(id)}`);
+          fillPost(record);
           syncUrl();
           await loadList(id);
         } catch (err) {
@@ -748,18 +531,18 @@ export const prerender = true;
       }
 
       async function saveCurrent() {
-        const data = mode === 'posts' ? postFormData() : projectFormData();
+        const data = postFormData();
         if (!data.title || !data.description) {
           setStatus('Title and description are required', 'err');
           return;
         }
-        if (mode === 'posts' && !data.pubDate) {
+        if (!data.pubDate) {
           setStatus('Published date is required', 'err');
           return;
         }
 
         try {
-          const base = mode === 'posts' ? '/posts' : '/projects';
+          const base = '/posts';
           if (currentId) {
             await api(`${base}/${encodeURIComponent(currentId)}`, {
               method: 'PUT',
@@ -774,15 +557,13 @@ export const prerender = true;
             });
             currentId = created.id;
             els.preview.hidden = false;
-            els.preview.href =
-              mode === 'posts' ? `/writing/${created.id}` : `/projects/${created.id}`;
+            els.preview.href = previewHref(created.id);
             els.del.disabled = false;
             setTarget(itemLabel(created.id));
             markClean('Created');
             syncUrl();
           }
           await loadList(currentId);
-          if (mode === 'posts') await refreshProjectOptions(els.post.project.value);
         } catch (err) {
           setStatus(err.message, 'err');
         }
@@ -790,9 +571,8 @@ export const prerender = true;
 
       async function deleteCurrent() {
         if (!currentId) return;
-        const label = mode === 'posts' ? 'post' : 'project';
         const ok = await ask({
-          title: `Delete this ${label}?`,
+          title: 'Delete this post?',
           message: `${itemLabel(currentId)} will be removed from disk. This can’t be undone from the editor.`,
           ok: 'Delete',
           tone: 'danger',
@@ -800,57 +580,21 @@ export const prerender = true;
         if (!ok) return;
 
         try {
-          const base = mode === 'posts' ? '/posts' : '/projects';
-          await api(`${base}/${encodeURIComponent(currentId)}`, { method: 'DELETE' });
+          await api(`/posts/${encodeURIComponent(currentId)}`, { method: 'DELETE' });
           blankForm();
           await loadList();
-          if (mode === 'posts') await refreshProjectOptions();
           setStatus('Deleted', 'ok');
         } catch (err) {
           setStatus(err.message, 'err');
         }
       }
 
-      /** Point the UI at a collection. No confirming, no loading — just the
-       *  chrome, so boot can restore a tab as cheaply as a click switches one. */
-      function applyMode(next) {
-        mode = next;
-        els.tabs.forEach((tab) => {
-          tab.classList.toggle('is-active', tab.dataset.mode === mode);
-        });
-        els.postFields.hidden = mode !== 'posts';
-        els.projectFields.hidden = mode !== 'projects';
-        els.sidebarLabel.textContent = mode === 'posts' ? 'Posts' : 'Projects';
-      }
-
-      /** Mirror tab + open file into the query string. Makes a refresh land
+      /** Mirror the open file into the query string. Makes a refresh land
        *  where you left off, and makes any editor state a linkable URL. */
       function syncUrl() {
         const params = new URLSearchParams();
-        params.set('tab', mode);
         if (currentId) params.set('id', currentId);
         history.replaceState(null, '', `${location.pathname}?${params}`);
-      }
-
-      async function switchMode(next) {
-        if (next === mode) return;
-        if (!(await confirmDiscard())) return;
-        currentId = null;
-        applyDirty(false);
-        applyMode(next);
-        els.search.value = '';
-
-        try {
-          const loaded = await loadList();
-          if (loaded.length > 0) {
-            await openItem(loaded[0].id);
-          } else {
-            blankForm();
-          }
-        } catch (err) {
-          blankForm();
-          setStatus(err.message, 'err');
-        }
       }
 
       els.save.addEventListener('click', saveCurrent);
@@ -860,9 +604,6 @@ export const prerender = true;
         blankForm();
         renderList(null);
         els.post.title.focus();
-      });
-      els.tabs.forEach((tab) => {
-        tab.addEventListener('click', () => switchMode(tab.dataset.mode));
       });
       els.search.addEventListener('input', () => renderList());
       els.search.addEventListener('keydown', (e) => {
@@ -914,9 +655,9 @@ export const prerender = true;
 
       // ---- Image paste / drop -------------------------------------------
       // Upload an image blob to the dev API (which writes it beside the
-      // collection's Markdown under a uuid name) and return its ./path.
+      // posts' Markdown under a uuid name) and return its ./path.
       async function uploadImage(file) {
-        const q = `/uploads?collection=${mode}`;
+        const q = '/uploads';
         const bases = [API, API_FALLBACK];
         for (let i = 0; i < bases.length; i++) {
           const last = i === bases.length - 1;
@@ -1130,14 +871,8 @@ export const prerender = true;
         // Restore whatever the URL is pointing at, so a refresh — or a reload
         // that slips past the guard above — lands back where you were.
         const params = new URLSearchParams(location.search);
-        if (params.get('tab') === 'projects') applyMode('projects');
         const wantId = params.get('id');
 
-        try {
-          await refreshProjectOptions();
-        } catch {
-          // project dropdown is optional on first load
-        }
         try {
           const loaded = await loadList();
           const target = loaded.find((it) => it.id === wantId) ?? loaded[0];
@@ -1202,7 +937,7 @@ export const prerender = true;
       /* ---- Header --------------------------------------------------------- */
       .top {
         display: grid;
-        grid-template-columns: 1fr auto 1fr;
+        grid-template-columns: 1fr auto;
         align-items: center;
         gap: 1rem;
         padding: 0.9rem 1.5rem;
@@ -1239,35 +974,6 @@ export const prerender = true;
         border: 1px solid var(--hair-strong);
         border-radius: 999px;
         padding: 0.15rem 0.5rem;
-      }
-
-      .tabs {
-        display: flex;
-        gap: 0.25rem;
-        padding: 0.2rem;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.45);
-        border: 1px solid var(--hair);
-      }
-
-      .tab {
-        font: inherit;
-        font-size: 0.72rem;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        padding: 0.45rem 1rem;
-        border: none;
-        border-radius: 999px;
-        background: transparent;
-        color: var(--ink-soft);
-        cursor: pointer;
-        transition: background 0.18s ease, color 0.18s ease;
-      }
-
-      .tab:hover { color: var(--ink); }
-      .tab.is-active {
-        background: var(--ink);
-        color: #f5f6f8;
       }
 
       .actions {
@@ -1313,7 +1019,7 @@ export const prerender = true;
       button:hover, .ghost:hover { background: rgba(255, 255, 255, 0.9); }
       button:active { transform: translateY(1px); }
 
-      button:focus-visible, .ghost:focus-visible, .tab:focus-visible {
+      button:focus-visible, .ghost:focus-visible {
         outline: 2px solid rgba(21, 22, 26, 0.45);
         outline-offset: 2px;
       }
@@ -1528,7 +1234,6 @@ export const prerender = true;
       }
 
       .flag-draft { color: var(--amber); }
-      .flag-featured { color: var(--ok); }
 
       .item.is-broken .item-title { color: var(--danger); }
 
@@ -1723,14 +1428,6 @@ export const prerender = true;
       }
 
       @media (max-width: 900px) {
-        .top {
-          grid-template-columns: 1fr auto;
-          row-gap: 0.75rem;
-        }
-
-        .tabs { grid-column: 1; grid-row: 2; }
-        .actions { grid-column: 2; grid-row: 2; }
-
         .layout { grid-template-columns: 1fr; }
 
         aside {

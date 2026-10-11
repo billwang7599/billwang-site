@@ -5,12 +5,14 @@
 // as global styles, so pages that use it only emit semantic markup.
 //
 // Pass page-specific <link>/<meta> through the named "head" slot.
+import { HOME_HREF, blogPath } from '../lib/urls';
+
 interface Props {
   title: string;
   description: string;
   canonical?: string;
   ogType?: 'website' | 'article';
-  current?: 'projects' | 'writing';
+  current?: 'blog';
 }
 
 const {
@@ -32,7 +34,7 @@ const {
     <link
       rel="alternate"
       type="application/rss+xml"
-      title="Bill Wang — Writing"
+      title="Bill Wang — Blog"
       href="/rss.xml"
     />
     <meta property="og:type" content={ogType} />
@@ -51,19 +53,13 @@ const {
   </head>
   <body>
     <header class="site-nav">
-      <a class="site-name" href="/">Bill Wang</a>
+      <a class="site-name" href={HOME_HREF}>Bill Wang</a>
       <nav aria-label="Site">
         <a
-          href="/projects"
-          class={current === 'projects' ? 'current' : undefined}
-          aria-current={current === 'projects' ? 'page' : undefined}
-          >Projects</a
-        >
-        <a
-          href="/writing"
-          class={current === 'writing' ? 'current' : undefined}
-          aria-current={current === 'writing' ? 'page' : undefined}
-          >Writing</a
+          href={blogPath()}
+          class={current === 'blog' ? 'current' : undefined}
+          aria-current={current === 'blog' ? 'page' : undefined}
+          >Blog</a
         >
       </nav>
     </header>
@@ -536,15 +532,13 @@ const {
         .page-header,
         .filters,
         .post-header,
-        .project-header,
         .prose,
         .entries > li {
           opacity: 0;
           animation: rise 0.7s cubic-bezier(0.2, 0.65, 0.2, 1) both;
         }
         .page-header,
-        .post-header,
-        .project-header {
+        .post-header {
           animation-delay: 0.06s;
         }
         .filters {
@@ -632,7 +626,7 @@ const {
         margin-bottom: 1.5rem;
       }
 
-      /* ---- Editorial entry list (projects + posts) ---------------------- */
+      /* ---- Editorial entry list (posts) ---------------------- */
       .entries {
         list-style: none;
         display: flex;
@@ -714,7 +708,7 @@ const {
         opacity: 0.45;
       }
 
-      /* ---- Prose (rendered Markdown, shared by posts + projects) -------- */
+      /* ---- Prose (rendered Markdown, used by posts) -------- */
       .prose {
         font-size: clamp(1.08rem, 2.7vw, 1.22rem);
         line-height: 1.72;
