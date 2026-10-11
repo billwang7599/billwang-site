@@ -2,9 +2,8 @@
 title: "Homelab Updated - Hardware and Services"
 description: "I love docker and containerization"
 pubDate: 2026-01-04
-tags: ["homelab", "network", "devlog"]
+tags: ["homelab","networks","devlog"]
 ---
-
 ## Hardware Updates
 Motherboard: Gigabyte B760M Gaming + Wifi DDR4 \
 OS: Proxmox 9.1 (Kernel 6.17.4) \
