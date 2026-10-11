@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { BLOG_HREF, BLOG_ORIGIN } from '../lib/urls';
 
 const yieldFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -342,7 +341,7 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
         { t: '·', url: null },
         { t: 'GITHUB/BILLWANG7599', url: 'https://github.com/billwang7599' },
         { t: '·', url: null },
-        { t: 'MY BLOG', url: BLOG_HREF },
+        { t: 'MY BLOG', url: '/blog' },
       ];
       const sep = '   ';
       const sepW = ctx.measureText(sep).width;
@@ -780,8 +779,8 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
     const url = linkAt(e.clientX, e.clientY);
     if (!url) return;
-    if (url.startsWith('/') || url.startsWith(BLOG_ORIGIN)) {
-      // Internal page (or our own blog host): play the card's outro, then navigate into the shared grey.
+    if (url.startsWith('/')) {
+      // Internal page: play the card's outro, then navigate into the shared grey.
       void playOutro().then(() => {
         window.location.href = url;
       });

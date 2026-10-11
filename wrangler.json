@@ -7,15 +7,15 @@
     "binding": "ASSETS",
     "run_worker_first": true
   },
-  "durable_objects": {
-    "bindings": [{ "name": "EDITOR", "class_name": "EditorDO" }]
-  },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EditorDO"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["EditorDO"] },
+    { "tag": "v2", "deleted_classes": ["EditorDO"] }
+  ],
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": "",
     "GITHUB_REPO": "billwang7599/billwang-site",
     "GITHUB_BRANCH": "main"
   },
+  "workers_dev": false,
+  "preview_urls": false,
   "observability": { "enabled": true }
 }

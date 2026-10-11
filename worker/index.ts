@@ -1,37 +1,46 @@
 // Front door for billwang.dev and blog.billwang.dev. Static assets are served
 // by the platform; this Worker runs first (run_worker_first) to:
-//   1. gate /edit/* behind Cloudflare Access (anything else → empty 404),
-//   2. serve the editor API from the EditorDO,
-//   3. map blog.billwang.dev/<slug> onto the build's /blog/<slug>/ pages and
-//      redirect the old URLs (apex /blog, /writing, /works, /projects).
-import { isSignedIn } from './access';
-import type { Result } from './editor-do';
+//   1. serve the editor at billwang.dev/blog/edit and blog.billwang.dev/edit,
+//      both backed by the build's /edit/ page and the GitHub-backed API,
+//   2. send the rest of blog.billwang.dev to billwang.dev/blog.
+//
+// There is NO authentication in this file. Cloudflare Access in front of those
+// two paths is the only gate, so the Worker must answer the editor on exactly
+// the paths Access covers and nowhere else (see editorPath, and the workers.dev
+// / preview URLs being switched off in wrangler.json).
+import * as editor from './editor';
+import type { Result } from './editor';
 import type { JsonBody } from '../src/dev-blog/post-input';
 
-export { EditorDO } from './editor-do';
-
 const BLOG_HOST = 'blog.billwang.dev';
+const SITE_ORIGIN = 'https://billwang.dev';
 
-/** Old URL prefixes that now live at the root of the blog host. */
-const LEGACY_PREFIXES = ['/blog', '/writing', '/works'];
-
-/** Where an old-style path now lives on the blog host, or null if it isn't one. */
-function legacyBlogPath(pathname: string): string | null {
-  for (const prefix of LEGACY_PREFIXES) {
-    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
-      return pathname.slice(prefix.length) || '/';
-    }
-  }
-  if (pathname === '/projects' || pathname.startsWith('/projects/')) return '/';
-  return null;
+/** The editor's path as the build knows it (/edit/...), or null if this request
+ *  isn't for the editor. Each host answers only on its own Access-protected
+ *  path: /edit on the blog host, /blog/edit on the apex. */
+function editorPath(url: URL): string | null {
+  const prefix = url.hostname === BLOG_HOST ? '' : '/blog';
+  const base = `${prefix}/edit`;
+  const { pathname } = url;
+  if (pathname !== base && !pathname.startsWith(`${base}/`)) return null;
+  return pathname.slice(prefix.length);
 }
 
 function notFound(): Response {
   return new Response(null, { status: 404 });
 }
 
+/** Writes must come from the editor's own origin. Browsers always attach Origin
+ *  to cross-site writes, so this stops another site from driving the API with a
+ *  signed-in visitor's cookies. Requests with no Origin (curl, same-origin GETs)
+ *  pass; Access is still the real gate. */
+function crossOriginWrite(request: Request, url: URL): boolean {
+  if (request.method === 'GET' || request.method === 'HEAD') return false;
+  const origin = request.headers.get('Origin');
+  return origin !== null && origin !== url.origin;
+}
+
 async function handleApi(request: Request, env: Env, pathname: string): Promise<Response> {
-  const editor = env.EDITOR.getByName('editor');
   const { method } = request;
   const json = async () => ((await request.json().catch(() => ({}))) as JsonBody);
 
@@ -40,19 +49,20 @@ async function handleApi(request: Request, env: Env, pathname: string): Promise<
     const post = pathname.match(/^\/edit\/api\/posts\/([^/]+)$/);
     if (pathname === '/edit/api/uploads' && method === 'POST') {
       result = await editor.uploadImage(
+        env,
         await request.arrayBuffer(),
         request.headers.get('content-type') ?? '',
       );
     } else if (pathname === '/edit/api/posts' && method === 'GET') {
-      result = await editor.listPosts();
+      result = await editor.listPosts(env);
     } else if (pathname === '/edit/api/posts' && method === 'POST') {
-      result = await editor.createPost(await json());
+      result = await editor.createPost(env, await json());
     } else if (post && method === 'GET') {
-      result = await editor.getPost(decodeURIComponent(post[1]));
+      result = await editor.getPost(env, decodeURIComponent(post[1]));
     } else if (post && method === 'PUT') {
-      result = await editor.savePost(decodeURIComponent(post[1]), await json());
+      result = await editor.savePost(env, decodeURIComponent(post[1]), await json());
     } else if (post && method === 'DELETE') {
-      result = await editor.deletePost(decodeURIComponent(post[1]));
+      result = await editor.deletePost(env, decodeURIComponent(post[1]));
     } else {
       result = { status: 404, data: { error: 'Not found' } };
     }
@@ -66,38 +76,38 @@ async function handleApi(request: Request, env: Env, pathname: string): Promise<
   });
 }
 
-/** blog.billwang.dev/<slug> → the build's /blog/<slug>/ page. */
-function serveBlog(request: Request, env: Env, url: URL): Promise<Response> | Response {
-  const legacy = legacyBlogPath(url.pathname);
-  if (legacy !== null) return Response.redirect(new URL(legacy + url.search, url), 301);
-
-  const last = url.pathname.split('/').pop() ?? '';
-  // Built files (/_astro/*, /rss.xml, images…) are served from where they are.
-  if (url.pathname.startsWith('/_astro/') || last.includes('.')) return env.ASSETS.fetch(request);
-
-  // Rewrite straight to the trailing-slash form so assets doesn't redirect and
-  // leak the internal /blog/ prefix into the address bar.
-  const slug = url.pathname.replace(/\/+$/, '');
-  const target = new URL(`/blog${slug}/`, url);
-  return env.ASSETS.fetch(new Request(target, request));
+/** blog.billwang.dev/<anything> → billwang.dev/blog/<anything>. */
+function redirectToBlog(url: URL): Response {
+  const rest = url.pathname.replace(/^\/blog(?=\/|$)/, '') || '/';
+  // Built files (/rss.xml, images…) live at the apex root, not under /blog.
+  const isFile = (rest.split('/').pop() ?? '').includes('.');
+  const target = isFile ? rest : `/blog${rest}`;
+  return Response.redirect(`${SITE_ORIGIN}${target}${url.search}`, 301);
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    if (url.pathname === '/edit' || url.pathname.startsWith('/edit/')) {
-      if (!(await isSignedIn(request, env))) return notFound();
-      if (url.pathname.startsWith('/edit/api/')) return handleApi(request, env, url.pathname);
-      return env.ASSETS.fetch(request);
+    const route = editorPath(url);
+    if (route !== null) {
+      if (route.startsWith('/edit/api/')) {
+        if (crossOriginWrite(request, url)) {
+          return Response.json({ error: 'Cross-origin request blocked' }, { status: 403 });
+        }
+        return handleApi(request, env, route);
+      }
+      // The page is built at /edit/; request that form so assets doesn't
+      // redirect and expose the internal path.
+      const asset = new URL(route === '/edit' ? '/edit/' : route, url);
+      return env.ASSETS.fetch(new Request(asset, request));
     }
 
-    if (url.hostname === BLOG_HOST) return serveBlog(request, env, url);
+    // The built editor page is in the assets; never serve it from a path
+    // Access doesn't cover.
+    if (url.pathname === '/edit' || url.pathname.startsWith('/edit/')) return notFound();
 
-    const legacy = legacyBlogPath(url.pathname);
-    if (legacy !== null) {
-      return Response.redirect(`https://${BLOG_HOST}${legacy}${url.search}`, 301);
-    }
+    if (url.hostname === BLOG_HOST) return redirectToBlog(url);
     return env.ASSETS.fetch(request);
   },
 } satisfies ExportedHandler<Env>;

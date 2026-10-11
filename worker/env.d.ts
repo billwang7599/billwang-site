@@ -3,9 +3,6 @@
 declare namespace Cloudflare {
   interface Env {
     ASSETS: Fetcher;
-    EDITOR: DurableObjectNamespace<import('./editor-do').EditorDO>;
-    ACCESS_TEAM_DOMAIN: string;
-    ACCESS_AUD: string;
     GITHUB_REPO: string;
     GITHUB_BRANCH: string;
     /** Fine-grained PAT: Contents read/write on GITHUB_REPO only. */

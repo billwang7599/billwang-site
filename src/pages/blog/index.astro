@@ -5,7 +5,6 @@
 // renders complete without JS).
 import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
-import { blogPath, CANONICAL_INDEX } from '../../lib/urls';
 import { readingTime } from '../../lib/reading';
 
 const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
@@ -22,7 +21,7 @@ const fmtDate = (d: Date) =>
 <Base
   title="Blog — Bill Wang"
   description="Posts by Bill Wang — dev logs, networking, homelab and more."
-  canonical={CANONICAL_INDEX}
+  canonical="https://billwang.dev/blog"
   current="blog"
 >
   <header class="page-header">
@@ -53,7 +52,7 @@ const fmtDate = (d: Date) =>
         {posts.map((post, i) => (
           <li data-tags={post.data.tags.join(' ')} style={`--i:${i}`}>
             <div class="row">
-              <a class="title" href={blogPath(post.id)}>
+              <a class="title" href={`/blog/${post.id}`}>
                 {post.data.title}
               </a>
               <span class="dots" aria-hidden="true" />

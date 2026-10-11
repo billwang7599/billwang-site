@@ -157,7 +157,9 @@ export const prerender = true;
     </div>
 
     <script>
-      const API = '/edit/api';
+      // The editor is served at /edit (blog host) and /blog/edit (apex); the API
+      // sits beside whichever one this page was loaded from.
+      const API = location.pathname.startsWith('/blog/edit') ? '/blog/edit/api' : '/edit/api';
       const API_FALLBACK = '/blog/api';
       let currentId = null;
       let dirty = false;
@@ -257,9 +259,11 @@ export const prerender = true;
         return `src/content/blog/${id}.md`;
       }
 
-      /** The blog host serves posts at the root; the dev server keeps /blog/. */
+      /** On blog.billwang.dev there's no /blog/ — posts live on the apex host. */
       function previewHref(id) {
-        return location.hostname.startsWith('blog.') ? `/${id}` : `/blog/${id}`;
+        return location.hostname.startsWith('blog.')
+          ? `https://billwang.dev/blog/${id}`
+          : `/blog/${id}`;
       }
 
       function today() {

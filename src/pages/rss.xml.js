@@ -1,9 +1,8 @@
 import rss from '@astrojs/rss';
 import { getCollection } from 'astro:content';
-import { canonicalPost } from '../lib/urls';
 
-// /rss.xml — subscribable feed of all non-draft posts, newest first. item links are absolute
-// URLs on the blog host.
+// /rss.xml — subscribable feed of all non-draft posts, newest first. `site`
+// comes from astro.config.mjs (https://billwang.dev), so item links resolve.
 export async function GET(context) {
   const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
     (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
@@ -18,7 +17,7 @@ export async function GET(context) {
       description: post.data.description,
       pubDate: post.data.pubDate,
       categories: post.data.tags,
-      link: canonicalPost(post.id),
+      link: `/blog/${post.id}/`,
     })),
   });
 }

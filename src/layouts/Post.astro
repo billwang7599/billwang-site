@@ -3,7 +3,6 @@
 // adds the post header (kicker, title, dateline, reading time, tags) and the
 // back link. The rendered Markdown body arrives through <slot />.
 import Base from './Base.astro';
-import { blogPath, canonicalPost } from '../lib/urls';
 
 interface Props {
   title: string;
@@ -28,7 +27,7 @@ const {
 const fmt = (d: Date) =>
   d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-const canonical = canonicalPost(slug);
+const canonical = `https://billwang.dev/blog/${slug}`;
 ---
 
 <Base
@@ -48,7 +47,7 @@ const canonical = canonicalPost(slug);
   <article>
     <header class="post-header">
       <p class="kicker">
-        <a href={blogPath()}>
+        <a href="/blog">
           <span class="arrow back" aria-hidden="true">
             &larr;
           </span>
@@ -76,7 +75,7 @@ const canonical = canonicalPost(slug);
       <slot />
     </div>
 
-    <p class="all-link"><a href={blogPath()}>← All posts</a></p>
+    <p class="all-link"><a href="/blog">← All posts</a></p>
   </article>
 
   <style>

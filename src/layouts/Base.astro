@@ -5,8 +5,6 @@
 // as global styles, so pages that use it only emit semantic markup.
 //
 // Pass page-specific <link>/<meta> through the named "head" slot.
-import { HOME_HREF, blogPath } from '../lib/urls';
-
 interface Props {
   title: string;
   description: string;
@@ -53,10 +51,10 @@ const {
   </head>
   <body>
     <header class="site-nav">
-      <a class="site-name" href={HOME_HREF}>Bill Wang</a>
+      <a class="site-name" href="/">Bill Wang</a>
       <nav aria-label="Site">
         <a
-          href={blogPath()}
+          href="/blog"
           class={current === 'blog' ? 'current' : undefined}
           aria-current={current === 'blog' ? 'page' : undefined}
           >Blog</a
