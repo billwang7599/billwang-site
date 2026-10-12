@@ -1,9 +1,9 @@
 ---
 // Base.astro — the shared site chrome for every page except the canvas landing.
 // It carries the white page, the sticky nav, the footer, and the whole
-// typographic system as global styles: tall condensed display type for titles,
-// monospace for anything that's metadata, a plain sans for reading. Pages that
-// use it only emit semantic markup.
+// typographic system as global styles — everything is set in one monospace,
+// kept quiet: small sizes, greys, and a single accent saved for hover. Pages
+// that use it only emit semantic markup.
 //
 // Pass page-specific <link>/<meta> through the named "head" slot.
 interface Props {
@@ -12,8 +12,6 @@ interface Props {
   canonical?: string;
   ogType?: 'website' | 'article';
   current?: 'blog';
-  /** Widen <main> past the reading measure (the blog index, with its card). */
-  wide?: boolean;
 }
 
 const {
@@ -22,7 +20,6 @@ const {
   canonical,
   ogType = 'website',
   current,
-  wide = false,
 } = Astro.props;
 ---
 
@@ -49,7 +46,7 @@ const {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@300;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap"
     />
     <slot name="head" />
   </head>
@@ -64,11 +61,10 @@ const {
           aria-current={current === 'blog' ? 'page' : undefined}
           >blog</a
         >
-        <a href="/rss.xml">rss</a>
       </nav>
     </header>
 
-    <main class={wide ? 'wide' : undefined}>
+    <main>
       <slot />
     </main>
 
@@ -320,17 +316,14 @@ const {
 
     <style is:global>
       :root {
-        --bg: #fcfcfc;
-        --ink: #111113;
-        --ink-soft: #5f6066;
-        --hair: rgba(17, 17, 19, 0.12);
-        --hair-strong: rgba(17, 17, 19, 0.24);
+        --bg: #ffffff;
+        --ink: #1a1a1d;
+        --ink-soft: #707177;
+        --faint: #cfd0d4;
+        --hair: rgba(26, 26, 29, 0.08);
         --accent: #e8461a;
-        --display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
         --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-        --sans: 'IBM Plex Sans', system-ui, sans-serif;
-        --measure: 44rem;
-        --wide: 70rem;
+        --measure: 46rem;
         --gutter: clamp(1.25rem, 5vw, 2.5rem);
       }
       * {
@@ -363,7 +356,8 @@ const {
         flex-direction: column;
         color: var(--ink);
         background: var(--bg);
-        font-family: var(--sans);
+        font-family: var(--mono);
+        font-size: 0.875rem;
         -webkit-font-smoothing: antialiased;
       }
       ::selection {
@@ -371,7 +365,7 @@ const {
         color: #fff;
       }
       :focus-visible {
-        outline: 2px solid var(--accent);
+        outline: 1px solid var(--accent);
         outline-offset: 3px;
       }
 
@@ -399,7 +393,7 @@ const {
         right: 4px;
         width: 3px;
         border-radius: 999px;
-        background: rgba(17, 17, 19, 0.3);
+        background: rgba(26, 26, 29, 0.22);
         cursor: grab;
         transition:
           width 0.18s ease,
@@ -408,7 +402,7 @@ const {
       .scrollbar:hover .thumb,
       .scrollbar.is-dragging .thumb {
         width: 5px;
-        background: var(--accent);
+        background: rgba(26, 26, 29, 0.4);
       }
       .scrollbar.is-dragging .thumb {
         cursor: grabbing;
@@ -444,56 +438,28 @@ const {
         justify-content: space-between;
         gap: 1rem;
         width: 100%;
-        max-width: calc(var(--wide) + 2 * var(--gutter));
+        max-width: calc(var(--measure) + 2 * var(--gutter));
         margin: 0 auto;
         padding: 1.25rem var(--gutter);
         background: var(--bg);
-        font-family: var(--mono);
-        font-size: 0.85rem;
+        font-size: 0.8rem;
       }
       .site-nav a {
         color: var(--ink);
         text-decoration: none;
-      }
-      .site-name:hover {
-        color: var(--accent);
+        transition: color 0.15s ease;
       }
       .site-nav nav {
         display: flex;
-        gap: 0.4rem;
+        gap: 1.25rem;
       }
-      /* Each link wears a pair of brackets: invisible until hovered, solid on
-         the page you're on — so the current section reads as [blog]. */
       .site-nav nav a {
         color: var(--ink-soft);
-        padding: 0.5rem 0.1rem;
-        transition: color 0.15s ease;
+        padding: 0.5rem 0;
       }
-      .site-nav nav a::before,
-      .site-nav nav a::after {
-        opacity: 0;
-        transition: opacity 0.15s ease;
-      }
-      .site-nav nav a::before {
-        content: '[';
-      }
-      .site-nav nav a::after {
-        content: ']';
-      }
-      .site-nav nav a:hover {
-        color: var(--ink);
-      }
-      .site-nav nav a:hover::before,
-      .site-nav nav a:hover::after {
-        opacity: 1;
-        color: var(--accent);
-      }
+      .site-nav a:hover,
       .site-nav nav a.current {
         color: var(--ink);
-      }
-      .site-nav nav a.current::before,
-      .site-nav nav a.current::after {
-        opacity: 1;
       }
 
       /* ---- Page wrapper -------------------------------------------------- */
@@ -503,9 +469,6 @@ const {
         max-width: calc(var(--measure) + 2 * var(--gutter));
         margin: 0 auto;
         padding: clamp(1rem, 4vw, 2rem) var(--gutter) clamp(4rem, 10vw, 6rem);
-      }
-      main.wide {
-        max-width: calc(var(--wide) + 2 * var(--gutter));
       }
 
       /* Arrival: blocks rise in, staggered; list rows cascade via --i. */
@@ -533,7 +496,7 @@ const {
           animation-delay: 0.2s;
         }
         .entries > li {
-          animation-delay: calc(0.22s + var(--i, 0) * 0.05s);
+          animation-delay: calc(0.22s + var(--i, 0) * 0.04s);
         }
 
         /* Leaving: the page sinks away before navigating. Set by the inline
@@ -550,7 +513,7 @@ const {
       @keyframes rise {
         from {
           opacity: 0;
-          transform: translateY(14px);
+          transform: translateY(10px);
         }
         to {
           opacity: 1;
@@ -560,7 +523,7 @@ const {
       @keyframes nav-in {
         from {
           opacity: 0;
-          transform: translateY(-10px);
+          transform: translateY(-8px);
         }
         to {
           opacity: 1;
@@ -580,131 +543,90 @@ const {
         }
         to {
           opacity: 0;
-          transform: translateY(10px);
+          transform: translateY(8px);
         }
       }
 
-      /* ---- Shared type --------------------------------------------------- */
-      .mono {
-        font-family: var(--mono);
-      }
-      .display {
-        font-family: var(--display);
-        text-transform: uppercase;
-      }
       .empty {
-        font-family: var(--mono);
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         color: var(--ink-soft);
         padding: 0.5rem 0;
       }
 
       /* ---- Entry list (posts) ------------------------------------------- */
+      /* Each post is one line — title, dotted leader, date — with its
+         description underneath. */
       .entries {
         list-style: none;
-        border-bottom: 1px solid var(--hair);
       }
       .entries > li {
         border-top: 1px solid var(--hair);
       }
       .entries .row {
-        display: grid;
-        grid-template-columns: 2.75rem minmax(0, 1fr) auto;
-        gap: 0 1.25rem;
-        align-items: baseline;
-        padding: 1.4rem 0;
+        display: block;
+        padding: 0.9rem 0;
         color: var(--ink);
         text-decoration: none;
       }
-      .entries .num {
-        font-family: var(--mono);
-        font-size: 0.8rem;
-        color: var(--ink-soft);
-        transition: color 0.15s ease;
+      .entries .line {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
       }
       .entries .title {
-        font-family: var(--display);
-        font-weight: 500;
-        font-size: clamp(1.9rem, 4.6vw, 2.6rem);
-        line-height: 1;
-        text-transform: uppercase;
-        overflow-wrap: anywhere;
+        min-width: 0;
+        font-size: 0.875rem;
+        font-weight: 600;
+        line-height: 1.5;
+        text-transform: lowercase;
+        transition: color 0.15s ease;
       }
-      /* An ASCII arrow that draws itself out after the title on hover. The
-         flex-end + overflow keeps its tip visible while the width grows. */
-      .entries .trail {
-        display: inline-flex;
-        justify-content: flex-end;
-        overflow: hidden;
-        width: 0;
-        vertical-align: 0.3em;
-        font-family: var(--mono);
-        font-size: 1rem;
-        line-height: 1;
+      .entries .row:hover .title,
+      .entries .row:focus-visible .title {
         color: var(--accent);
-        transition: width 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
       }
-      .entries .trail span {
-        flex: 0 0 auto;
-        white-space: pre;
+      .entries .leader {
+        flex: 1;
+        min-width: 1.5rem;
+        border-bottom: 1px dotted var(--faint);
+        transform: translateY(-0.25rem);
       }
-      .entries .row:hover .trail,
-      .entries .row:focus-visible .trail {
-        width: 8.5rem;
-      }
-      .entries .row:hover .num,
-      .entries .row:focus-visible .num {
-        color: var(--accent);
+      .entries .date {
+        font-size: 0.75rem;
+        color: var(--ink-soft);
+        white-space: nowrap;
       }
       .entries .blurb {
         display: block;
-        margin-top: 0.6rem;
-        font-family: var(--mono);
-        font-size: 0.85rem;
-        line-height: 1.6;
-        color: var(--ink-soft);
-      }
-      .entries .meta {
-        font-family: var(--mono);
+        margin-top: 0.15rem;
         font-size: 0.8rem;
         line-height: 1.6;
         color: var(--ink-soft);
-        text-align: right;
-        white-space: nowrap;
       }
-      @media (max-width: 640px) {
-        .entries .row {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        .entries .num {
+      @media (max-width: 560px) {
+        .entries .leader,
+        .entries .date {
           display: none;
-        }
-        .entries .meta {
-          order: -1;
-          text-align: left;
-          margin-bottom: 0.4rem;
         }
       }
 
       /* ---- Tags (post header) ------------------------------------------- */
       .tag {
-        font-family: var(--mono);
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         color: var(--ink-soft);
       }
       .tag::before {
         content: '#';
-        color: var(--accent);
+        color: var(--faint);
       }
 
       /* ---- Footer -------------------------------------------------------- */
       .site-footer {
         width: 100%;
-        max-width: calc(var(--wide) + 2 * var(--gutter));
+        max-width: calc(var(--measure) + 2 * var(--gutter));
         margin: 0 auto;
         padding: 0 var(--gutter) clamp(1.5rem, 4vw, 2.5rem);
-        font-family: var(--mono);
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         color: var(--ink-soft);
       }
       /* An ASCII rule, cut to whatever width the footer has. */
@@ -712,6 +634,7 @@ const {
         overflow: hidden;
         white-space: nowrap;
         margin-bottom: 1rem;
+        color: var(--faint);
       }
       .footer-rule::before {
         content: '·─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────·';
@@ -727,57 +650,61 @@ const {
         transition: color 0.15s ease;
       }
       .site-footer a:hover {
-        color: var(--accent);
+        color: var(--ink);
       }
 
       /* ---- Prose (rendered Markdown, used by posts) -------- */
       .prose {
-        font-size: clamp(1.02rem, 2.4vw, 1.1rem);
-        line-height: 1.75;
+        font-size: 0.9rem;
+        line-height: 1.8;
         color: var(--ink);
       }
       .prose > * + * {
-        margin-top: 1.25rem;
+        margin-top: 1.2rem;
       }
+      /* Headings keep their Markdown hashes, faintly. */
       .prose h2,
       .prose h3 {
-        font-family: var(--display);
-        font-weight: 500;
-        text-transform: uppercase;
-        line-height: 1;
-        margin-top: 2.8rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        line-height: 1.4;
+        margin-top: 2.4rem;
       }
-      .prose h2 {
-        font-size: clamp(1.9rem, 5vw, 2.4rem);
+      .prose h2::before {
+        content: '## ';
+        color: var(--faint);
       }
-      .prose h3 {
-        font-size: clamp(1.5rem, 4vw, 1.8rem);
+      .prose h3::before {
+        content: '### ';
+        color: var(--faint);
       }
       .prose a {
         color: var(--ink);
         text-decoration: underline;
-        text-decoration-color: var(--accent);
+        text-decoration-color: var(--faint);
         text-decoration-thickness: 1px;
         text-underline-offset: 3px;
-        transition: color 0.15s ease;
+        transition:
+          color 0.15s ease,
+          text-decoration-color 0.15s ease;
       }
       .prose a:hover {
         color: var(--accent);
+        text-decoration-color: var(--accent);
       }
       .prose ul,
       .prose ol {
         padding-left: 1.4rem;
       }
       .prose li + li {
-        margin-top: 0.4rem;
+        margin-top: 0.35rem;
       }
       .prose ul li::marker {
         content: '- ';
-        font-family: var(--mono);
-        color: var(--accent);
+        color: var(--ink-soft);
       }
       .prose blockquote {
-        border-left: 2px solid var(--accent);
+        border-left: 1px solid var(--faint);
         padding-left: 1.2rem;
         color: var(--ink-soft);
       }
@@ -789,23 +716,22 @@ const {
       .prose hr {
         border: 0;
         text-align: center;
-        font-family: var(--mono);
-        color: var(--ink-soft);
+        color: var(--faint);
       }
       .prose hr::before {
         content: '* * *';
       }
       .prose code {
         font-family: var(--mono);
-        font-size: 0.86em;
-        background: rgba(17, 17, 19, 0.06);
-        padding: 0.12em 0.35em;
+        font-size: 0.92em;
+        background: rgba(26, 26, 29, 0.05);
+        padding: 0.1em 0.3em;
         border-radius: 3px;
       }
       .prose pre {
-        font-size: clamp(0.8rem, 2.1vw, 0.88rem);
+        font-size: 0.8rem;
         line-height: 1.65;
-        padding: 1.1rem 1.25rem;
+        padding: 1rem 1.2rem;
         border-radius: 4px;
         overflow-x: auto;
       }

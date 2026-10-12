@@ -2,7 +2,7 @@
 // /blog — the full post index, newest-first, with a tag filter. Posts come
 // from the `blog` collection; each row carries its tags + reading time, and the
 // filter below the header narrows the list client-side (the list still renders
-// complete without JS). The hero holds the ASCII business card.
+// complete without JS). The header holds a small ASCII business card.
 import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import { readingTime } from '../../lib/reading';
@@ -18,10 +18,6 @@ const tags = [...new Set(posts.flatMap((p) => p.data.tags))].sort();
 // in UTC too so the build machine's timezone can't shift them a day.
 const fmtDate = (d: Date) => d.toISOString().slice(0, 10).replaceAll('-', '.');
 const since = posts.length ? fmtDate(posts[posts.length - 1].data.pubDate).slice(0, 7) : '';
-
-// Posts are numbered oldest-first, so a post keeps its number as more arrive
-// and as the filter hides its neighbours.
-const pad = (n: number) => String(n).padStart(2, '0');
 ---
 
 <Base
@@ -29,26 +25,26 @@ const pad = (n: number) => String(n).padStart(2, '0');
   description="Posts by Bill Wang — dev logs, networking, homelab and more."
   canonical="https://billwang.dev/blog"
   current="blog"
-  wide
 >
   <header class="page-header">
     <div class="intro">
-      <h1 class="display">Blog</h1>
-      <p class="lede display">Dev logs, notes, and things worth keeping.</p>
-      <p class="count mono">
-        {posts.length} entries{since && ` · since ${since}`}
-        <span class="hint"> · drag the card</span>
-      </p>
+      <h1>~/blog</h1>
+      <p class="lede">Dev logs, notes, and things worth keeping.</p>
+      <p class="count">{posts.length} entries{since && ` · since ${since}`}</p>
     </div>
-    <button class="ascii-card" type="button" aria-label="Spin the ASCII business card">
+    <button
+      class="ascii-card"
+      type="button"
+      title="drag me"
+      aria-label="Spin the ASCII business card"
+    >
       <pre aria-hidden="true"></pre>
     </button>
   </header>
 
   {
     tags.length > 0 && (
-      <div class="filters mono" role="group" aria-label="Filter by tag">
-        <span class="filters-label">filter:</span>
+      <div class="filters" role="group" aria-label="Filter by tag">
         <button class="opt" data-tag="*" type="button" aria-pressed="true">
           <span class="mark">(•)</span> all
         </button>
@@ -69,25 +65,18 @@ const pad = (n: number) => String(n).padStart(2, '0');
         {posts.map((post, i) => (
           <li data-tags={post.data.tags.join(' ')} style={`--i:${i}`}>
             <a class="row" href={`/blog/${post.id}`} aria-label={post.data.title}>
-              <span class="num" aria-hidden="true">
-                {pad(posts.length - i)}
-              </span>
-              <span>
-                <span class="title" aria-hidden="true" data-text={post.data.title}>
+              <span class="line">
+                <span class="title" aria-hidden="true" data-text={post.data.title.toLowerCase()}>
                   {post.data.title}
                 </span>
-                <span class="trail" aria-hidden="true">
-                  <span> ──────────────────&gt;</span>
-                </span>
-                <span class="blurb">{post.data.description}</span>
-              </span>
-              <span class="meta">
-                <time datetime={post.data.pubDate.toISOString()}>
+                <span class="leader" aria-hidden="true" />
+                <time class="date" datetime={post.data.pubDate.toISOString()}>
                   {fmtDate(post.data.pubDate)}
                 </time>
-                <br />
-                {post.data.tags[0] && `${post.data.tags[0]} · `}
-                {readingTime(post.body ?? '')} min
+              </span>
+              <span class="blurb">
+                {post.data.description}
+                <span class="mins"> · {readingTime(post.body ?? '')} min</span>
               </span>
             </a>
           </li>
@@ -128,9 +117,9 @@ const pad = (n: number) => String(n).padStart(2, '0');
       });
     }
 
-    // Hovering a row scrambles its title into glyphs, then resolves it left to
-    // right. The link's accessible name comes from aria-label, so screen
-    // readers never hear the noise.
+    // Hovering a row flickers its title through a few glyphs, then resolves it
+    // left to right. The link's accessible name comes from aria-label, so
+    // screen readers never hear the noise.
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const GLYPHS = '#/\\<>_01:+=*%';
       for (const row of document.querySelectorAll<HTMLAnchorElement>('#post-list .row')) {
@@ -142,7 +131,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
           clearInterval(timer);
           let shown = 0;
           timer = window.setInterval(() => {
-            shown += 2;
+            shown += 3;
             if (shown >= text.length) {
               clearInterval(timer);
               title.textContent = text;
@@ -151,7 +140,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
             title.textContent = [...text]
               .map((c, k) => (k < shown || c === ' ' ? c : GLYPHS[(k * 7 + shown * 3) % GLYPHS.length]))
               .join('');
-          }, 22);
+          }, 16);
         };
         row.addEventListener('pointerenter', scramble);
         row.addEventListener('focus', scramble);
@@ -164,39 +153,33 @@ const pad = (n: number) => String(n).padStart(2, '0');
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 1.5rem 2.5rem;
-      margin-bottom: clamp(2.5rem, 7vw, 4.5rem);
+      justify-content: space-between;
+      gap: 1.5rem 2rem;
+      margin: 0 0 clamp(1.5rem, 5vw, 2.5rem);
     }
     .intro {
-      flex: 1 1 20rem;
+      flex: 1 1 16rem;
       min-width: 0;
     }
     h1 {
-      font-weight: 300;
-      font-size: clamp(6rem, 18vw, 12.5rem);
-      line-height: 0.8;
-      letter-spacing: -0.01em;
+      font-size: 0.95rem;
+      font-weight: 600;
     }
     .lede {
-      margin-top: 1.4rem;
-      font-weight: 500;
-      font-size: clamp(1.5rem, 3.4vw, 1.9rem);
-      line-height: 1.05;
-      max-width: 26rem;
-    }
-    .count {
-      margin-top: 1rem;
+      margin-top: 0.6rem;
       font-size: 0.8rem;
+      line-height: 1.6;
       color: var(--ink-soft);
     }
-    .hint {
-      color: var(--accent);
+    .count {
+      margin-top: 0.25rem;
+      font-size: 0.75rem;
+      color: var(--faint);
     }
 
     .ascii-card {
       all: unset;
-      flex: 1 1 32rem;
-      min-width: 0;
+      flex: 0 0 auto;
       display: block;
       cursor: grab;
       user-select: none;
@@ -208,17 +191,18 @@ const pad = (n: number) => String(n).padStart(2, '0');
       cursor: grabbing;
     }
     .ascii-card:focus-visible {
-      outline: 2px solid var(--accent);
+      outline: 1px solid var(--accent);
       outline-offset: 4px;
     }
     .ascii-card pre {
-      margin: 0;
+      /* The grid keeps spare rows so a tilted card never clips; at rest those
+         are blank, so let them overhang rather than push the layout apart. */
+      margin: -8em 0;
       font-family: var(--mono);
-      font-size: 10px; /* refit to the width by the script */
+      font-size: 4.3px;
       line-height: 1.1;
-      color: var(--ink);
+      color: #a3a4aa;
       white-space: pre;
-      overflow: hidden;
     }
 
     .filters {
@@ -226,30 +210,29 @@ const pad = (n: number) => String(n).padStart(2, '0');
       flex-wrap: wrap;
       align-items: center;
       gap: 0 1rem;
-      margin-bottom: 0.75rem;
-      font-size: 0.85rem;
-    }
-    .filters-label {
-      color: var(--ink-soft);
+      font-size: 0.8rem;
     }
     .opt {
       font: inherit;
       color: var(--ink-soft);
       background: none;
       border: 0;
-      padding: 0 0.25rem;
+      padding: 0;
       min-height: 44px;
       cursor: pointer;
       transition: color 0.15s ease;
     }
     .opt:hover {
-      color: var(--accent);
-    }
-    .opt[aria-pressed='true'] {
       color: var(--ink);
     }
+    .opt[aria-pressed='true'] {
+      color: var(--accent);
+    }
+    .mins {
+      color: var(--faint);
+    }
     .no-match {
-      padding: 1.35rem 0;
+      padding: 1.2rem 0;
     }
   </style>
 </Base>

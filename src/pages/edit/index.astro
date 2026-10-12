@@ -15,7 +15,7 @@ export const prerender = true;
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@300;500&family=JetBrains+Mono:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap"
     />
   </head>
   <body>
@@ -27,7 +27,7 @@ export const prerender = true;
       <div class="actions">
         <span id="status" class="status" role="status" aria-live="polite"></span>
         <button id="save-btn" type="button" class="primary">
-          [ save ]
+          save
           <kbd>&#8984;S</kbd>
         </button>
       </div>
@@ -541,9 +541,9 @@ export const prerender = true;
       const saveLine = document.getElementById('save-line');
       let saveTimer;
       let saveRun = 0; // a newer save supersedes an older one's finish
-      const BAR = 20;
+      const BAR = 12;
 
-      /** Run the ASCII bar up to 90% until `done` is called, then finish it
+      /** Run the ASCII bar most of the way until `done` is called, then finish it
        *  (or clear it on failure). A local save takes a few ms, so the bar
        *  always plays for a beat rather than flashing. */
       function startSaveBar() {
@@ -551,12 +551,12 @@ export const prerender = true;
         const run = ++saveRun;
         let n = 0;
         const paint = () => {
-          saveLine.textContent = `writing [${'#'.repeat(n)}${'.'.repeat(BAR - n)}] ${n * 5}%`;
+          saveLine.textContent = `[${'#'.repeat(n)}${'.'.repeat(BAR - n)}]`;
         };
         const started = performance.now();
         paint();
         saveTimer = window.setInterval(() => {
-          if (n < BAR * 0.9) n++;
+          if (n < BAR - 1) n++;
           paint();
         }, 25);
         return (ok) => {
@@ -571,7 +571,7 @@ export const prerender = true;
             n = BAR;
             paint();
             saveTimer = window.setTimeout(() => {
-              saveLine.textContent = 'saved.  \\(^o^)/';
+              saveLine.textContent = 'saved';
               saveTimer = window.setTimeout(() => (saveLine.textContent = ''), 2200);
             }, 160);
           }, wait);
@@ -946,23 +946,20 @@ export const prerender = true;
          scoped selectors compile down to and would go completely unstyled.
          This page is a standalone document, so there's nothing to leak into. -->
     <style is:global>
-      /* The editor is the dark counterpart to the white blog: same type
-         system (condensed display for titles, monospace for everything that's
-         a control or metadata), one orange accent. */
+      /* Same quiet system as the blog: one monospace, white page, greys,
+         and the orange accent kept for focus and the open file. */
       :root {
-        --bg: #111113;
-        --surface: #18181b;
-        --ink: #ededed;
-        --ink-soft: #8e8f95;
-        --hair: rgba(237, 237, 237, 0.1);
-        --hair-strong: rgba(237, 237, 237, 0.2);
-        --accent: #ff6a3d;
-        --danger: #ff6b6b;
-        --ok: #7bd88f;
-        --amber: #f5b84a;
-        --display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+        --bg: #ffffff;
+        --surface: #fafafa;
+        --ink: #1a1a1d;
+        --ink-soft: #707177;
+        --hair: rgba(26, 26, 29, 0.08);
+        --hair-strong: rgba(26, 26, 29, 0.16);
+        --accent: #e8461a;
+        --danger: #c0392b;
+        --ok: #2e7d4f;
+        --amber: #a8701a;
         --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-        color-scheme: dark;
       }
 
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -979,7 +976,7 @@ export const prerender = true;
         -webkit-font-smoothing: antialiased;
       }
 
-      ::selection { background: var(--accent); color: #111113; }
+      ::selection { background: var(--accent); color: #fff; }
 
       /* ---- Header --------------------------------------------------------- */
       .top {
@@ -1082,7 +1079,7 @@ export const prerender = true;
 
       button.danger {
         color: var(--danger);
-        border-color: rgba(255, 107, 107, 0.3);
+        border-color: rgba(192, 57, 43, 0.3);
       }
 
       button.danger:hover { border-color: var(--danger); color: var(--danger); }
@@ -1090,7 +1087,7 @@ export const prerender = true;
       button.danger.solid {
         background: var(--danger);
         border-color: var(--danger);
-        color: #111113;
+        color: #fff;
       }
 
       .api-banner {
@@ -1098,8 +1095,8 @@ export const prerender = true;
         padding: 0.6rem 1.25rem;
         font-size: 0.8rem;
         color: var(--danger);
-        background: rgba(255, 107, 107, 0.08);
-        border-bottom: 1px solid rgba(255, 107, 107, 0.2);
+        background: rgba(192, 57, 43, 0.06);
+        border-bottom: 1px solid rgba(192, 57, 43, 0.18);
       }
 
       .api-banner code { font-family: var(--mono); }
@@ -1186,11 +1183,11 @@ export const prerender = true;
         transform: translateX(-3px);
       }
 
-      .item:hover { background: rgba(237, 237, 237, 0.04); color: var(--ink); }
+      .item:hover { background: rgba(26, 26, 29, 0.03); color: var(--ink); }
       .item:hover::before { opacity: 0.5; transform: none; }
       .item:active { transform: none; }
 
-      .item.is-active { color: var(--accent); background: rgba(255, 106, 61, 0.08); }
+      .item.is-active { color: var(--ink); background: rgba(26, 26, 29, 0.05); }
       .item.is-active::before { opacity: 1; transform: none; }
 
       .item-title {
@@ -1269,7 +1266,7 @@ export const prerender = true;
         min-height: 1.2em;
         margin-top: -0.4rem;
         font-size: 0.8rem;
-        color: var(--accent);
+        color: var(--ink-soft);
         white-space: pre;
       }
 
@@ -1296,7 +1293,7 @@ export const prerender = true;
         margin-bottom: 0.9rem;
       }
 
-      .panel-title::before { content: '// '; color: var(--accent); }
+      .panel-title::before { content: '// '; opacity: 0.5; }
 
       .panel-head .panel-title { margin-bottom: 0; }
 
@@ -1353,7 +1350,7 @@ export const prerender = true;
         border: 1px solid var(--hair-strong);
         border-radius: 3px;
         padding: 0.55rem 0.65rem;
-        background: rgba(0, 0, 0, 0.25);
+        background: var(--bg);
         transition: border-color 0.15s ease;
       }
 
@@ -1362,14 +1359,9 @@ export const prerender = true;
         border-color: var(--accent);
       }
 
-      /* The title is set the way the blog will show it. */
       #post-title {
-        font-family: var(--display);
-        font-weight: 500;
-        font-size: 2.2rem;
-        line-height: 1.1;
-        text-transform: uppercase;
-        padding: 0.2rem 0.6rem;
+        font-weight: 600;
+        font-size: 1rem;
       }
 
       label.toggle input {
@@ -1439,7 +1431,7 @@ export const prerender = true;
       }
 
       dialog.ask::backdrop {
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(26, 26, 29, 0.25);
       }
 
       dialog.ask form {
@@ -1452,11 +1444,9 @@ export const prerender = true;
       }
 
       dialog.ask h2 {
-        font-family: var(--display);
-        font-size: 1.9rem;
-        font-weight: 500;
-        line-height: 1;
-        text-transform: uppercase;
+        font-size: 1rem;
+        font-weight: 600;
+        line-height: 1.4;
       }
 
       dialog.ask p {
@@ -1499,7 +1489,7 @@ export const prerender = true;
       .modal-backdrop {
         position: absolute;
         inset: 0;
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(26, 26, 29, 0.25);
       }
 
       .modal-card {
@@ -1542,14 +1532,12 @@ export const prerender = true;
 
       .dropzone.is-over {
         border-color: var(--accent);
-        background: rgba(255, 106, 61, 0.06);
+        background: rgba(232, 70, 26, 0.04);
       }
 
       .dropzone-title {
-        font-family: var(--display);
-        font-size: 1.6rem;
-        font-weight: 500;
-        text-transform: uppercase;
+        font-size: 0.95rem;
+        font-weight: 600;
       }
 
       .dropzone-sub {

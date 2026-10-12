@@ -47,9 +47,9 @@ const canonical = `https://billwang.dev/blog/${slug}`;
 
   <article>
     <header class="post-header">
-      <p class="kicker mono"><a href="/blog"><span class="arrow" aria-hidden="true">&lt;──</span> blog</a></p>
-      <h1 class="display">{title}</h1>
-      <p class="dateline mono">
+      <p class="kicker"><a href="/blog"><span class="arrow" aria-hidden="true">&lt;──</span> ~/blog</a></p>
+      <h1>{title}</h1>
+      <p class="dateline">
         <time datetime={pubDate.toISOString()}>{fmt(pubDate)}</time>
         {updatedDate && <span> · updated {fmt(updatedDate)}</span>}
         <span> · {minutes} min read</span>
@@ -69,15 +69,15 @@ const canonical = `https://billwang.dev/blog/${slug}`;
       <slot />
     </div>
 
-    <p class="all-link mono"><a href="/blog"><span class="arrow" aria-hidden="true">&lt;──</span> all posts</a></p>
+    <p class="all-link"><a href="/blog"><span class="arrow" aria-hidden="true">&lt;──</span> all posts</a></p>
   </article>
 
   <style>
     .post-header {
-      margin-bottom: clamp(2.5rem, 7vw, 3.5rem);
+      margin: clamp(1rem, 4vw, 2rem) 0 clamp(2rem, 6vw, 3rem);
     }
     .kicker {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       margin-bottom: 1.5rem;
     }
     .kicker a,
@@ -88,24 +88,23 @@ const canonical = `https://billwang.dev/blog/${slug}`;
     }
     .kicker a:hover,
     .all-link a:hover {
-      color: var(--accent);
+      color: var(--ink);
     }
     .arrow {
       display: inline-block;
       transition: transform 0.2s ease;
     }
     a:hover .arrow {
-      transform: translateX(-4px);
+      transform: translateX(-3px);
     }
     .post-header h1 {
-      font-weight: 500;
-      font-size: clamp(2.8rem, 9vw, 4.6rem);
-      line-height: 0.92;
-      overflow-wrap: anywhere;
+      font-size: 1.2rem;
+      font-weight: 600;
+      line-height: 1.4;
     }
     .dateline {
-      margin-top: 1.1rem;
-      font-size: 0.8rem;
+      margin-top: 0.6rem;
+      font-size: 0.75rem;
       color: var(--ink-soft);
     }
     .tags {
@@ -113,7 +112,7 @@ const canonical = `https://billwang.dev/blog/${slug}`;
       display: flex;
       flex-wrap: wrap;
       gap: 0.25rem 1rem;
-      margin-top: 0.6rem;
+      margin-top: 0.4rem;
     }
 
     /* Closes the body on a rule rather than letting it trail off. */
@@ -121,7 +120,7 @@ const canonical = `https://billwang.dev/blog/${slug}`;
       margin-top: clamp(3rem, 8vw, 4.5rem);
       padding-top: 1.5rem;
       border-top: 1px solid var(--hair);
-      font-size: 0.85rem;
+      font-size: 0.8rem;
     }
   </style>
 </Base>

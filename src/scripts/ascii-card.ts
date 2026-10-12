@@ -10,7 +10,6 @@ const ROWS = 40;
 const CELL_H = 1.85; // a monospace cell is ~1.85× taller than it is wide
 const CARD_W = 72; // in cell widths
 const CARD_H = 41;
-const GLYPH_ADVANCE = 0.6; // JetBrains Mono advance width, in em
 
 // 5×7 bitmap glyphs, just the letters the card needs.
 const FONT: Record<string, string[]> = {
@@ -83,9 +82,9 @@ export function mountAsciiCard(button: HTMLElement, pre: HTMLElement) {
 
   let yaw = 0.5;
   let pitch = -0.15;
-  let vYaw = still ? 0 : 0.012;
+  let vYaw = still ? 0 : 0.008;
   let vPitch = 0;
-  const drift = still ? 0 : 0.012;
+  const drift = still ? 0 : 0.008;
   const restPitch = -0.15;
 
   let dragging = false;
@@ -98,12 +97,6 @@ export function mountAsciiCard(button: HTMLElement, pre: HTMLElement) {
 
   const draw = () => {
     pre.textContent = frame(yaw, pitch);
-  };
-
-  // Fit the grid to the container: size the font so COLS cells fill its width.
-  const fit = () => {
-    const size = Math.min(11, Math.max(4, button.clientWidth / (COLS * GLYPH_ADVANCE)));
-    pre.style.fontSize = `${size}px`;
   };
 
   const tick = (t: number) => {
@@ -164,7 +157,7 @@ export function mountAsciiCard(button: HTMLElement, pre: HTMLElement) {
     const wasDrag = moved > 4;
     moved = 0; // so a later keyboard press still flicks
     if (wasDrag) return;
-    vYaw = 0.32;
+    vYaw = 0.25;
     schedule();
   });
 
@@ -175,8 +168,6 @@ export function mountAsciiCard(button: HTMLElement, pre: HTMLElement) {
   }).observe(button);
   document.addEventListener('visibilitychange', schedule);
 
-  new ResizeObserver(fit).observe(button);
-  fit();
   draw();
   schedule();
 }
