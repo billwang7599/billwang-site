@@ -85,6 +85,17 @@ const {
       <div class="thumb"></div>
     </div>
 
+    <!-- ASCII critters playing along the bottom edge, behind the content.
+         Decorative; skipped entirely under reduced motion. -->
+    <div class="critters" aria-hidden="true"></div>
+
+    <script>
+      import { mountCritters } from '../scripts/critters';
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        mountCritters(document.querySelector<HTMLElement>('.critters')!);
+      }
+    </script>
+
     <script>
       // Smooth internal navigation: fade the page out before leaving, so moving
       // between blog pages — and back to the landing card — reads as one
@@ -462,8 +473,46 @@ const {
         color: var(--ink);
       }
 
+      /* ---- Critters ------------------------------------------------------ */
+      /* A strip pinned to the viewport floor. main and the footer sit above it
+         (z-index 1), so text always paints over the critters, never under. */
+      .critters {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 3rem;
+        z-index: 0;
+        pointer-events: none;
+        user-select: none;
+        font-size: 0.75rem;
+        color: var(--faint);
+      }
+      .critter {
+        position: absolute;
+        left: 0;
+        bottom: 0.6rem;
+        white-space: nowrap;
+        will-change: transform;
+      }
+      .critter .bubble {
+        position: absolute;
+        left: 50%;
+        bottom: 100%;
+        transform: translateX(-50%);
+        font-size: 0.65rem;
+        color: var(--ink-soft);
+        opacity: 0;
+        transition: opacity 0.25s ease;
+      }
+      .critter .bubble.on {
+        opacity: 0.7;
+      }
+
       /* ---- Page wrapper -------------------------------------------------- */
       main {
+        position: relative;
+        z-index: 1;
         flex: 1;
         width: 100%;
         max-width: calc(var(--measure) + 2 * var(--gutter));
@@ -622,6 +671,8 @@ const {
 
       /* ---- Footer -------------------------------------------------------- */
       .site-footer {
+        position: relative;
+        z-index: 1;
         width: 100%;
         max-width: calc(var(--measure) + 2 * var(--gutter));
         margin: 0 auto;
