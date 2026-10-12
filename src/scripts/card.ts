@@ -341,7 +341,7 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
         { t: '·', url: null },
         { t: 'GITHUB/BILLWANG7599', url: 'https://github.com/billwang7599' },
         { t: '·', url: null },
-        { t: 'MY BLOG', url: '/blog' },
+        { t: 'MY BLOG', url: 'https://blog.billwang.dev' },
       ];
       const sep = '   ';
       const sepW = ctx.measureText(sep).width;

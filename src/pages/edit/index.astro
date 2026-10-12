@@ -262,11 +262,9 @@ export const prerender = true;
         return `src/content/blog/${id}.md`;
       }
 
-      /** On blog.billwang.dev there's no /blog/ — posts live on the apex host. */
+      /** On blog.billwang.dev posts sit at the root; elsewhere (dev) under /blog/. */
       function previewHref(id) {
-        return location.hostname.startsWith('blog.')
-          ? `https://billwang.dev/blog/${id}`
-          : `/blog/${id}`;
+        return location.hostname.startsWith('blog.') ? `/${id}` : `/blog/${id}`;
       }
 
       function today() {

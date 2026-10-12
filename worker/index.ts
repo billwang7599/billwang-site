@@ -2,7 +2,8 @@
 // by the platform; this Worker runs first (run_worker_first) to:
 //   1. serve the editor at billwang.dev/blog/edit and blog.billwang.dev/edit,
 //      both backed by the build's /edit/ page and the GitHub-backed API,
-//   2. send the rest of blog.billwang.dev to billwang.dev/blog.
+//   2. serve the blog at blog.billwang.dev (the build's /blog pages, with the
+//      address left alone), and send billwang.dev/blog/... there.
 //
 // There is NO authentication in this file. Cloudflare Access in front of those
 // two paths is the only gate, so the Worker must answer the editor on exactly
@@ -76,13 +77,38 @@ async function handleApi(request: Request, env: Env, pathname: string): Promise<
   });
 }
 
-/** blog.billwang.dev/<anything> → billwang.dev/blog/<anything>. */
-function redirectToBlog(url: URL): Response {
-  const rest = url.pathname.replace(/^\/blog(?=\/|$)/, '') || '/';
-  // Built files (/rss.xml, images…) live at the apex root, not under /blog.
-  const isFile = (rest.split('/').pop() ?? '').includes('.');
-  const target = isFile ? rest : `/blog${rest}`;
-  return Response.redirect(`${SITE_ORIGIN}${target}${url.search}`, 301);
+const BLOG_PREFIX = /^\/blog(?=\/|$)/;
+
+/** Built files (/rss.xml, /_astro/*.js, images…) live at the build root, not
+ *  under /blog, so both hosts serve them as-is. */
+function isFile(pathname: string): boolean {
+  return (pathname.split('/').pop() ?? '').includes('.');
+}
+
+/** billwang.dev/blog/<anything> → blog.billwang.dev/<anything>. */
+function redirectToBlogHost(url: URL): Response {
+  const rest = url.pathname.replace(BLOG_PREFIX, '') || '/';
+  return Response.redirect(`https://${BLOG_HOST}${rest}${url.search}`, 301);
+}
+
+/** blog.billwang.dev/<page> is served from the build's /blog/<page>/ without
+ *  changing the address. The build's links still say /blog/..., so they're
+ *  rewritten on the way out; "/" means the card, which lives on the apex. */
+async function serveBlogPage(request: Request, env: Env, url: URL): Promise<Response> {
+  // Ask for the trailing-slash form so assets doesn't answer with a redirect
+  // to its internal /blog/ path.
+  const page = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
+  const res = await env.ASSETS.fetch(new Request(new URL(`/blog${page}`, url), request));
+
+  return new HTMLRewriter()
+    .on('a[href]', {
+      element(el) {
+        const href = el.getAttribute('href')!;
+        if (href === '/') el.setAttribute('href', `${SITE_ORIGIN}/`);
+        else if (BLOG_PREFIX.test(href)) el.setAttribute('href', href.replace(BLOG_PREFIX, '') || '/');
+      },
+    })
+    .transform(res);
 }
 
 export default {
@@ -107,7 +133,13 @@ export default {
     // Access doesn't cover.
     if (url.pathname === '/edit' || url.pathname.startsWith('/edit/')) return notFound();
 
-    if (url.hostname === BLOG_HOST) return redirectToBlog(url);
+    if (url.hostname === BLOG_HOST) {
+      if (isFile(url.pathname)) return env.ASSETS.fetch(request);
+      // Old-style blog.billwang.dev/blog/... links drop the redundant prefix.
+      if (BLOG_PREFIX.test(url.pathname)) return redirectToBlogHost(url);
+      return serveBlogPage(request, env, url);
+    }
+    if (BLOG_PREFIX.test(url.pathname)) return redirectToBlogHost(url);
     return env.ASSETS.fetch(request);
   },
 } satisfies ExportedHandler<Env>;
