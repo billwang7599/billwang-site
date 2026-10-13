@@ -6,6 +6,13 @@
 // that use it only emit semantic markup.
 //
 // Pass page-specific <link>/<meta> through the named "head" slot.
+//
+// Navigation between blog pages goes through Astro's ClientRouter, so the
+// page swaps in place instead of reloading: the critters and the scrollbar are
+// persisted across it. Page scripts therefore run once — anything that binds
+// to page content must do it on `astro:page-load`.
+import { ClientRouter } from 'astro:transitions';
+
 interface Props {
   title: string;
   description: string;
@@ -24,7 +31,9 @@ const {
 ---
 
 <!doctype html>
-<html lang="en">
+<!-- No view-transition crossfade: the sink/rise animations below already
+     carry the page change, and the persisted critters shouldn't blink. -->
+<html lang="en" transition:animation="none">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -50,6 +59,7 @@ const {
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap"
     />
     <slot name="head" />
+    <ClientRouter />
   </head>
   <body>
     <header class="site-nav">
@@ -81,13 +91,14 @@ const {
     <!-- Custom scrollbar. The native one is hidden site-wide; this is its
          replacement — a hairline thumb that surfaces while you scroll, and is
          draggable/clickable like the real thing. Driven by the script below. -->
-    <div class="scrollbar" aria-hidden="true" hidden>
+    <div class="scrollbar" aria-hidden="true" hidden transition:persist="scrollbar">
       <div class="thumb"></div>
     </div>
 
     <!-- ASCII critters playing along the bottom edge, behind the content.
-         Decorative; skipped entirely under reduced motion. -->
-    <div class="critters" aria-hidden="true"></div>
+         Persisted across navigation, and saved to localStorage so a refresh
+         picks up where they left off. Skipped entirely under reduced motion. -->
+    <div class="critters" aria-hidden="true" transition:persist="critters"></div>
 
     <script>
       import { mountCritters } from '../scripts/critters';
@@ -97,47 +108,23 @@ const {
     </script>
 
     <script>
-      // Smooth internal navigation: fade the page out before leaving, so moving
-      // between blog pages — and back to the landing card — reads as one
-      // continuous move rather than a hard cut.
-      const root = document.body;
+      // Smooth internal navigation: the page sinks away while the next one
+      // loads, then the new content rises in (its arrival animations run as it
+      // is swapped in). The ClientRouter does the navigating; this only holds
+      // the swap until the sink has played.
+      const SINK_MS = 340;
 
       // A back/forward restore (bfcache) can bring back a page left mid-fade.
       // Clear the leaving state so it's visible again.
-      window.addEventListener('pageshow', () => root.classList.remove('is-leaving'));
+      window.addEventListener('pageshow', () => document.body.classList.remove('is-leaving'));
 
-      document.addEventListener('click', (e) => {
-        if (e.defaultPrevented || e.button !== 0) return;
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-
-        const link = (e.target as HTMLElement).closest('a');
-        if (!link) return;
-
-        const href = link.getAttribute('href');
-        if (!href || link.target === '_blank' || link.hasAttribute('download')) return;
-
-        const url = new URL(href, location.href);
-        if (url.origin !== location.origin) return; // external → let it be
-        // Same-page hash (in-page anchor) → no transition.
-        if (url.pathname + url.search === location.pathname + location.search) return;
-        // Respect reduced motion — navigate immediately.
+      document.addEventListener('astro:before-preparation', (e) => {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-        e.preventDefault();
-        root.classList.add('is-leaving');
-
-        let navigated = false;
-        const go = () => {
-          if (navigated) return;
-          navigated = true;
-          location.href = url.href;
+        const load = e.loader;
+        e.loader = async () => {
+          document.body.classList.add('is-leaving');
+          await Promise.all([load(), new Promise((r) => setTimeout(r, SINK_MS))]);
         };
-        // Leave once the sink finishes. Ignore any in-flight arrival-reveal
-        // animationend events; a timer guards against a missed event.
-        root.addEventListener('animationend', (ev) => {
-          if ((ev as AnimationEvent).animationName === 'sink') go();
-        });
-        setTimeout(go, 420);
       });
     </script>
 
@@ -320,9 +307,20 @@ const {
       });
 
       // The page grows as images load and as the tag filter hides rows.
-      new ResizeObserver(draw).observe(document.body);
+      const sizes = new ResizeObserver(draw);
+      sizes.observe(document.body);
       window.addEventListener('resize', draw);
       draw();
+
+      // A client-side navigation swaps in a new <body> and replaces <html>'s
+      // attributes, so watch the new body and restore the easing class.
+      document.addEventListener('astro:after-swap', () => {
+        if (eased) docEl.classList.add('has-eased-scroll');
+        sizes.disconnect();
+        sizes.observe(document.body);
+        current = target = window.scrollY;
+        draw();
+      });
     </script>
 
     <style is:global>
@@ -607,9 +605,6 @@ const {
          description underneath. */
       .entries {
         list-style: none;
-      }
-      .entries > li {
-        border-top: 1px solid var(--hair);
       }
       .entries .row {
         display: block;

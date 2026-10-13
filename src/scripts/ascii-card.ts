@@ -119,6 +119,12 @@ export function mountAsciiCard(button: HTMLElement, pre: HTMLElement) {
     !dragging && Math.abs(vYaw - drift) < 0.0005 && Math.abs(vPitch) < 0.0005 && Math.abs(pitch - restPitch) < 0.002;
 
   function schedule() {
+    // Swapped out by a client-side navigation: let go of the page for good.
+    if (!button.isConnected) {
+      io.disconnect();
+      document.removeEventListener('visibilitychange', schedule);
+      return;
+    }
     if (raf !== null || !visible || document.hidden) return;
     // With reduced motion there is no idle drift, so stop once a flick dies down.
     if (still && settled()) return;
@@ -162,10 +168,11 @@ export function mountAsciiCard(button: HTMLElement, pre: HTMLElement) {
   });
 
   // Don't spin what nobody can see.
-  new IntersectionObserver(([entry]) => {
+  const io = new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting;
     schedule();
-  }).observe(button);
+  });
+  io.observe(button);
   document.addEventListener('visibilitychange', schedule);
 
   draw();

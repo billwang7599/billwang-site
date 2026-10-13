@@ -89,63 +89,68 @@ const since = posts.length ? fmtDate(posts[posts.length - 1].data.pubDate).slice
   <script>
     import { mountAsciiCard } from '../../scripts/ascii-card';
 
-    const card = document.querySelector<HTMLButtonElement>('.ascii-card');
-    if (card) mountAsciiCard(card, card.querySelector('pre')!);
+    // Pages are swapped in by the ClientRouter, so this script runs once; bind
+    // to the list every time it (re)appears instead.
+    document.addEventListener('astro:page-load', () => {
+      const card = document.querySelector<HTMLButtonElement>('.ascii-card');
+      if (!card) return; // not on the index
+      mountAsciiCard(card, card.querySelector('pre')!);
 
-    // Progressive enhancement: filter the rendered list by tag, in place.
-    const opts = document.querySelectorAll<HTMLButtonElement>('.opt');
-    const items = document.querySelectorAll<HTMLLIElement>('#post-list li');
-    const noMatch = document.querySelector<HTMLParagraphElement>('.no-match');
+      // Progressive enhancement: filter the rendered list by tag, in place.
+      const opts = document.querySelectorAll<HTMLButtonElement>('.opt');
+      const items = document.querySelectorAll<HTMLLIElement>('#post-list li');
+      const noMatch = document.querySelector<HTMLParagraphElement>('.no-match');
 
-    for (const opt of opts) {
-      opt.addEventListener('click', () => {
-        const tag = opt.dataset.tag!;
-        for (const o of opts) {
-          const on = o === opt;
-          o.setAttribute('aria-pressed', String(on));
-          o.querySelector('.mark')!.textContent = on ? '(•)' : '( )';
-        }
+      for (const opt of opts) {
+        opt.addEventListener('click', () => {
+          const tag = opt.dataset.tag!;
+          for (const o of opts) {
+            const on = o === opt;
+            o.setAttribute('aria-pressed', String(on));
+            o.querySelector('.mark')!.textContent = on ? '(•)' : '( )';
+          }
 
-        let shown = 0;
-        for (const li of items) {
-          const tags = (li.dataset.tags ?? '').split(' ');
-          const match = tag === '*' || tags.includes(tag);
-          li.hidden = !match;
-          if (match) shown++;
-        }
-        if (noMatch) noMatch.hidden = shown !== 0;
-      });
-    }
-
-    // Hovering a row flickers its title through a few glyphs, then resolves it
-    // left to right. The link's accessible name comes from aria-label, so
-    // screen readers never hear the noise.
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      const GLYPHS = '#/\\<>_01:+=*%';
-      for (const row of document.querySelectorAll<HTMLAnchorElement>('#post-list .row')) {
-        const title = row.querySelector<HTMLElement>('.title')!;
-        const text = title.dataset.text!;
-        let timer: number | undefined;
-
-        const scramble = () => {
-          clearInterval(timer);
           let shown = 0;
-          timer = window.setInterval(() => {
-            shown += 3;
-            if (shown >= text.length) {
-              clearInterval(timer);
-              title.textContent = text;
-              return;
-            }
-            title.textContent = [...text]
-              .map((c, k) => (k < shown || c === ' ' ? c : GLYPHS[(k * 7 + shown * 3) % GLYPHS.length]))
-              .join('');
-          }, 16);
-        };
-        row.addEventListener('pointerenter', scramble);
-        row.addEventListener('focus', scramble);
+          for (const li of items) {
+            const tags = (li.dataset.tags ?? '').split(' ');
+            const match = tag === '*' || tags.includes(tag);
+            li.hidden = !match;
+            if (match) shown++;
+          }
+          if (noMatch) noMatch.hidden = shown !== 0;
+        });
       }
-    }
+
+      // Hovering a row flickers its title through a few glyphs, then resolves it
+      // left to right. The link's accessible name comes from aria-label, so
+      // screen readers never hear the noise.
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const GLYPHS = '#/\\<>_01:+=*%';
+        for (const row of document.querySelectorAll<HTMLAnchorElement>('#post-list .row')) {
+          const title = row.querySelector<HTMLElement>('.title')!;
+          const text = title.dataset.text!;
+          let timer: number | undefined;
+
+          const scramble = () => {
+            clearInterval(timer);
+            let shown = 0;
+            timer = window.setInterval(() => {
+              shown += 3;
+              if (shown >= text.length) {
+                clearInterval(timer);
+                title.textContent = text;
+                return;
+              }
+              title.textContent = [...text]
+                .map((c, k) => (k < shown || c === ' ' ? c : GLYPHS[(k * 7 + shown * 3) % GLYPHS.length]))
+                .join('');
+            }, 16);
+          };
+          row.addEventListener('pointerenter', scramble);
+          row.addEventListener('focus', scramble);
+        }
+      }
+    });
   </script>
 
   <style>
@@ -233,6 +238,35 @@ const since = posts.length ? fmtDate(posts[posts.length - 1].data.pubDate).slice
     }
     .no-match {
       padding: 1.2rem 0;
+    }
+
+    /* The index fits the viewport: header and filters stay put and the post
+       list scrolls in the space left between them and the footer. Screens too
+       short to leave the list a useful box keep ordinary page scrolling. */
+    @media (min-height: 34rem) {
+      :global(body:has(#post-list)) {
+        height: 100dvh;
+        min-height: 0;
+      }
+      :global(main:has(#post-list)) {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        padding-bottom: 1.5rem;
+      }
+      #post-list {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        /* Room to scroll the last row clear of the fade below. */
+        padding-bottom: 2.5rem;
+        /* Rows fade out at the bottom edge rather than being cut off, which
+           also says "there's more" without a visible box. */
+        mask-image: linear-gradient(#000 calc(100% - 3rem), transparent);
+        scrollbar-width: thin;
+        scrollbar-color: rgba(26, 26, 29, 0.22) transparent;
+      }
     }
   </style>
 </Base>

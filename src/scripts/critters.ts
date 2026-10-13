@@ -5,6 +5,10 @@
  *
  * Purely decorative. The host element is aria-hidden and pointer-events: none;
  * the caller skips mounting under prefers-reduced-motion.
+ *
+ * The host is persisted across client-side navigation, so the same critters
+ * keep playing from page to page. A refresh or a new tab restores them from
+ * localStorage, where they're saved whenever the page is hidden or left.
  */
 
 type State = 'idle' | 'walk' | 'nap' | 'chase' | 'flee';
@@ -34,12 +38,51 @@ const RUN_SPEED = 70;
 const HOP_TIME = 0.35;
 const HOP_HEIGHT = 7;
 
+const STORE_KEY = 'critters';
+
+/** What survives a reload. Positions are fractions of the strip's width so a
+ *  different window size still puts everyone in the same relative spot. */
+interface Saved {
+  face: string;
+  x: number;
+  tx: number;
+  state: State;
+  timer: number;
+  other: number; // index into the saved list, or -1
+  hop: number;
+  bubble: string;
+  bubbleTimer: number;
+  phase: number;
+}
+
+const STATES: State[] = ['idle', 'walk', 'nap', 'chase', 'flee'];
+
+function load(): Saved[] | null {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    const list = raw ? (JSON.parse(raw) as Saved[]) : null;
+    if (!Array.isArray(list) || list.length === 0) return null;
+    const ok = list.every(
+      (c) =>
+        typeof c.face === 'string' &&
+        STATES.includes(c.state) &&
+        [c.x, c.tx, c.timer, c.other, c.hop, c.bubbleTimer, c.phase].every(Number.isFinite),
+    );
+    return ok ? list : null;
+  } catch {
+    return null; // storage blocked or garbage — start fresh
+  }
+}
+
 const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
 const pick = <T>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
 
 export function mountCritters(host: HTMLElement) {
+  const saved = load();
   const count = window.innerWidth < 600 ? 3 : 5;
-  const faces = [...FACES].sort(() => Math.random() - 0.5).slice(0, count);
+  const faces = saved
+    ? saved.map((c) => c.face)
+    : [...FACES].sort(() => Math.random() - 0.5).slice(0, count);
   let W = host.clientWidth;
 
   const critters: Critter[] = faces.map((face) => {
@@ -110,6 +153,52 @@ export function mountCritters(host: HTMLElement) {
         break;
     }
   };
+
+  if (saved) {
+    saved.forEach((sv, i) => {
+      const c = critters[i];
+      c.x = sv.x * W;
+      c.tx = sv.tx * W;
+      c.timer = sv.timer;
+      c.hop = sv.hop;
+      c.phase = sv.phase;
+      c.state = sv.state;
+      c.other = critters[sv.other] ?? null;
+      // A chase or flee needs its partner; without one, just stand around.
+      if ((c.state === 'chase' || c.state === 'flee') && (!c.other || c.other === c)) {
+        c.state = 'idle';
+        c.other = null;
+      }
+      setFace(c, c.state === 'nap' ? NAP_FACE : c.state === 'flee' ? SPOOKED_FACE : c.face);
+      if (sv.bubble && sv.bubbleTimer > 0) say(c, sv.bubble, sv.bubbleTimer);
+    });
+  }
+
+  const save = () => {
+    const out: Saved[] = critters.map((c) => ({
+      face: c.face,
+      x: W ? c.x / W : 0,
+      tx: W ? c.tx / W : 0,
+      state: c.state,
+      timer: c.timer,
+      other: c.other ? critters.indexOf(c.other) : -1,
+      hop: c.hop,
+      bubble: c.bubbleTimer > 0 ? (c.bubble.textContent ?? '') : '',
+      bubbleTimer: Math.max(0, c.bubbleTimer),
+      phase: c.phase,
+    }));
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(out));
+    } catch {
+      // Storage full or blocked: they'll just start over next time.
+    }
+  };
+  // pagehide covers refresh, close and leaving the blog; visibilitychange
+  // covers mobile browsers that kill a backgrounded tab without a pagehide.
+  window.addEventListener('pagehide', save);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) save();
+  });
 
   // What to do once the current state runs out.
   const next = (c: Critter) => {
