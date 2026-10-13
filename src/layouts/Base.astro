@@ -18,7 +18,9 @@ interface Props {
   description: string;
   canonical?: string;
   ogType?: 'website' | 'article';
-  current?: 'blog';
+  /** Inside a post, the nav's name becomes "blog" and leads back to the
+   *  index; elsewhere it's "bill wang" and leads home. */
+  inPost?: boolean;
 }
 
 const {
@@ -26,7 +28,7 @@ const {
   description,
   canonical,
   ogType = 'website',
-  current,
+  inPost = false,
 } = Astro.props;
 ---
 
@@ -63,15 +65,13 @@ const {
   </head>
   <body>
     <header class="site-nav">
-      <a class="site-name" href="/">bill wang</a>
-      <nav aria-label="Site">
-        <a
-          href="/blog"
-          class={current === 'blog' ? 'current' : undefined}
-          aria-current={current === 'blog' ? 'page' : undefined}
-          >blog</a
-        >
-      </nav>
+      {
+        inPost ? (
+          <a class="site-name" href="/blog">blog</a>
+        ) : (
+          <a class="site-name" href="/">bill wang</a>
+        )
+      }
     </header>
 
     <main>
@@ -458,16 +458,7 @@ const {
         text-decoration: none;
         transition: color 0.15s ease;
       }
-      .site-nav nav {
-        display: flex;
-        gap: 1.25rem;
-      }
-      .site-nav nav a {
-        color: var(--ink-soft);
-        padding: 0.5rem 0;
-      }
-      .site-nav a:hover,
-      .site-nav nav a.current {
+      .site-nav a:hover {
         color: var(--ink);
       }
 
