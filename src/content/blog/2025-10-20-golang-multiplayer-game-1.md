@@ -2,7 +2,7 @@
 title: "GoLang Multiplayer Pong | Log: #1"
 description: "Devlog for creating a GoLang terminal game using ECS architecture."
 pubDate: 2025-10-20
-tags: ["devlog"]
+tags: []
 ---
 
 ## Prelude

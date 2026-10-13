@@ -2,7 +2,7 @@
 title: "Where are my cookies?"
 description: "Exploring my stupid mistake using Next.js and Supabase auth."
 pubDate: 2025-10-06
-tags: ["blog"]
+tags: []
 ---
 
 ## Prelude

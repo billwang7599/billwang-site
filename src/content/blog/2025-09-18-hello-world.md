@@ -2,7 +2,7 @@
 title: "Hello World!"
 description: "First post, talking about how I got the blog setup."
 pubDate: 2025-09-18
-tags: ["blog"]
+tags: []
 ---
 
 Hi guys!

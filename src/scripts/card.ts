@@ -675,6 +675,24 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     return new Promise((res) => (exitResolve = res));
   }
 
+  /** Fade the whole page to white so leaving for the blog lands on its own
+   *  background rather than cutting from grey. */
+  function washOut(): Promise<void> {
+    const veil = document.createElement('div');
+    veil.style.cssText =
+      'position:fixed;inset:0;z-index:10;background:#fff;opacity:0;pointer-events:none;transition:opacity 0.28s ease';
+    document.body.append(veil);
+    void veil.offsetWidth; // commit opacity 0 so the change below transitions
+    veil.style.opacity = '1';
+    return new Promise((res) => setTimeout(res, 300));
+  }
+
+  // Coming back from the blog with Back restores this page as it was left —
+  // card dissolved, page washed white. Start it fresh instead.
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted && exiting) location.reload();
+  });
+
   card.quaternion.copy(introFromQuat);
   camera.position.z = introFromZ();
 
@@ -779,11 +797,14 @@ export async function mountCard(canvas: HTMLCanvasElement, params: CardParams = 
     if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
     const url = linkAt(e.clientX, e.clientY);
     if (!url) return;
-    if (url.startsWith('/')) {
-      // Internal page: play the card's outro, then navigate into the shared grey.
-      void playOutro().then(() => {
-        window.location.href = url;
-      });
+    if (url.startsWith('/') || new URL(url).hostname.endsWith('billwang.dev')) {
+      // Our own pages (the blog included) open in this tab: the card plays its
+      // outro, the room washes to the blog's white, and the blog rises in.
+      void playOutro()
+        .then(washOut)
+        .then(() => {
+          window.location.href = url;
+        });
     } else {
       window.open(url, '_blank', 'noopener');
     }

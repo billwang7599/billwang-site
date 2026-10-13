@@ -2,7 +2,7 @@
 title: "Homelab Updated - Hardware and Services"
 description: "I love docker and containerization"
 pubDate: 2026-01-04
-tags: ["homelab","networks","devlog"]
+tags: ["homelab", "networks"]
 ---
 ## Hardware Updates
 Motherboard: Gigabyte B760M Gaming + Wifi DDR4 \

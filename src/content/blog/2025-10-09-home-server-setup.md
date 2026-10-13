@@ -2,7 +2,7 @@
 title: "Home Server Setup/Future Plans"
 description: "My home server setup and future plans."
 pubDate: 2025-10-09
-tags: ["homelab", "networks", "devlog"]
+tags: ["homelab", "networks"]
 ---
 
 ## Prelude
